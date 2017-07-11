@@ -20,9 +20,12 @@ data Term = Abs String Type Term
           | Pred Term
           | IsZero Term
           | Zero
+          | EUnit
+          | Error
 
 data Type = Forall String Type
           | Type TExpr
+          | Top
           | Bottom
           deriving Eq
 
@@ -30,6 +33,7 @@ data TExpr = Arrow TExpr TExpr
            | TVar String
            | Bool
            | Nat
+           | Unit
            deriving Eq
 
 type Function a b = a -> Maybe b
@@ -81,12 +85,15 @@ showTerm ctx (IsZero t)    = "iszero (" ++ showTerm ctx t ++ ")"
 showTerm _   Tru           = "True"
 showTerm _   Fls           = "False"
 showTerm _   Zero          = "0"
+showTerm _   EUnit         = "()"
+showTerm _   Error         = "error"
 
 showType :: TContext -> Type -> String
 showType ctx (Forall n ty) = 
   "forall " ++ n ++ ". (" ++ showType ctx' ty ++ ")"
   where ctx' = addBinding ctx n n
 showType ctx (Type te)     = showTExpr ctx te
+showType _   Top           = "Top"
 showType _   Bottom        = "Bottom"
 
 showTExpr :: TContext -> TExpr -> String
@@ -101,6 +108,7 @@ showTExpr ctx (TVar s)    =
     _       -> s
 showTExpr ctx (Bool)      = "Bool"
 showTExpr ctx (Nat)       = "Nat"
+showTExpr ctx (Unit)     = "()"
 
 
 
@@ -226,7 +234,7 @@ substituteAll0 getSub t =
       case getSub v of
         Nothing -> ([v], TVar v)
         Just ty -> separate ty
-        t'      -> ([], t')
+    t'        -> ([], t')
 
 toFunct :: Eq a => [(a, b)] -> Function a b
 toFunct []     = \a -> Nothing
@@ -258,7 +266,10 @@ typeof0 ctx (App t1 t2)    =
       in if issub 
         then substituteAll subs ty12
         else error "parameter type mismatch"
-    _            -> error "arrow type expected as applicand"
+    _            ->
+      if ty1 == Bottom
+        then Bottom
+        else error "arrow type expected as applicand"
     where ty1 = typeof0 ctx t1
           ty2 = typeof0 ctx t2
 typeof0 ctx (Var v)        = 
@@ -267,9 +278,11 @@ typeof0 ctx (Var v)        =
     Just (_, t) -> t
 typeof0 ctx (If t1 t2 t3)  =
   if ty1 == Type Bool
-    then if ty2 == ty3
-      then ty2
-      else error "type mismatch in branches of conditional"
+    then if ty2 <: ty3
+      then ty3
+      else if ty3 <: ty2
+        then ty2
+        else error "type mismatch in branches of conditional"
     else error "type \'Bool\' expected in guard of conditional"
   where ty1 = typeof0 ctx t1
         ty2 = typeof0 ctx t2
@@ -292,10 +305,17 @@ typeof0 ctx (IsZero t)     =
 typeof0 _   Tru            = Type Bool
 typeof0 _   Fls            = Type Bool
 typeof0 _   Zero           = Type Nat
+typeof0 _   EUnit          = Type Unit
+typeof0 _   Error          = Bottom
 
 subtype :: Type -> Type -> Bool
-subtype Bottom t  = True
-subtype t1     t2 = b where (_, b) = subtype0 t1 t2
+subtype t           Top         = True
+subtype Top         t           = False
+subtype Bottom      t           = True
+subtype t           Bottom      = False
+subtype (Type Unit) (Type Bool) = True
+subtype (Type Unit) (Type Nat)  = True
+subtype t1          t2          = b where (_, b) = subtype0 t1 t2
 
 subtype0 :: Type -> Type -> ([(String, Type)], Bool)
 subtype0 t1 t2 =
@@ -324,4 +344,4 @@ subtype0 t1 t2 =
             Forall _ (Forall _ _)       -> ([], False)
             Forall _ (Type (Arrow _ _)) -> back
             _ -> back 
-    _ -> back
+        _ -> back
