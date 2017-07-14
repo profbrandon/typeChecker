@@ -1,9 +1,43 @@
+-- Type Checker for an extension to the Lambda Calculus
+
+-- Supported Language Features:
+
+--   Abstractions
+--   Application
+--   Variables
+--   Recursion
+--   Conditionals
+--   Successor Function
+--   Predeccessor Function
+--   Zero Test
+--   Boolean Values
+--   Natural Values
+--   Unit Value
+--   Errors (Uncaught Exceptions)
+
+-- Supported Typing Features:
+
+--   Universal Quantification (Parametric Polymorphism)
+--   Type Variables
+--   Top Type
+--   Bottom Type
+--   Arrow Types (Function Types)
+--   Bool Type
+--   Nat Type
+--   Unit Type
+--   Subtyping
+
 module TypeChecker
   ( Term (..)
   , Type (..)
   , TExpr (..)
+  , TContext (..)
+  , VContext (..)
   , showTerm
   , showType
+  , addBinding
+  , pushBinding
+  , shiftBindings
   , typeof
   , subtype
   , (<:)
@@ -13,6 +47,7 @@ where
 data Term = Abs String Type Term
           | App Term Term
           | Var Int
+          | Fix Term
           | If Term Term Term
           | Tru
           | Fls
@@ -69,7 +104,7 @@ shiftBindings ctx = \x -> ctx (x - 1)
 
 showTerm :: VContext -> Term -> String
 showTerm ctx (Abs s ty tm) = 
-  "\\" ++ s ++ " : " ++ show ty ++ " -> " ++ showTerm ctx' tm
+  "\\" ++ s ++ " : " ++ show ty ++ ". " ++ showTerm ctx' tm
   where ctx' = pushBinding ctx (s, ty)
 showTerm ctx (App t1 t2)   = 
   "(" ++ showTerm ctx t1 ++ ") (" ++ showTerm ctx t2 ++ ")"
@@ -77,6 +112,7 @@ showTerm ctx (Var v)       =
   case ctx v of
     Nothing     -> error "attempted access of unbound variable"
     Just (s, _) -> s
+showTerm ctx (Fix t)       = "fix (" ++ showTerm ctx t ++ ")"
 showTerm ctx (If t1 t2 t3) =
   "if " ++ showTerm ctx t1 ++ " then " ++ showTerm ctx t2 ++ " else " ++ showTerm ctx t3
 showTerm ctx (Succ t)      = "succ (" ++ showTerm ctx t ++ ")"
@@ -276,6 +312,11 @@ typeof0 ctx (Var v)        =
   case ctx v of
     Nothing     -> error "attempted access of unbound variable in function \'typeof\'"
     Just (_, t) -> t
+typeof0 ctx (Fix t)        =
+  case separate ty of
+    (qs, (Arrow _ _)) -> fst $ splitArrow ty
+    _                     -> error "expected arrow type to fix function"
+  where ty = typeof0 ctx t
 typeof0 ctx (If t1 t2 t3)  =
   if ty1 == Type Bool
     then if ty2 <: ty3
@@ -309,15 +350,13 @@ typeof0 _   EUnit          = Type Unit
 typeof0 _   Error          = Bottom
 
 subtype :: Type -> Type -> Bool
-subtype t           Top         = True
-subtype Top         t           = False
-subtype Bottom      t           = True
-subtype t           Bottom      = False
-subtype (Type Unit) (Type Bool) = True
-subtype (Type Unit) (Type Nat)  = True
 subtype t1          t2          = b where (_, b) = subtype0 t1 t2
 
 subtype0 :: Type -> Type -> ([(String, Type)], Bool)
+subtype0 t          Top         = ([], True)
+subtype0 Top        t           = ([], False)
+subtype0 Bottom     t           = ([], True)
+subtype0 t          Bottom      = ([], False)
 subtype0 t1 t2 =
   let t1' = condense t1
       t2' = condense t2
@@ -334,7 +373,7 @@ subtype0 t1 t2 =
     (True, True)   ->
       let (t11, t12) = splitArrow t1'
           (t21, t22) = splitArrow t2'
-          (subs, b)  = subtype0 t11 t21
+          (subs, b)  = subtype0 t21 t11
           back       = if b then subtype0 t12 $ substituteAll subs t22
                             else ([], False)
       in case t2' of
