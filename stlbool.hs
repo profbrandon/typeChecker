@@ -14,7 +14,7 @@
 --   Type Variables
 --   Bool Type
 
-module STLambda
+module STLambdaBool
   ( Term (..)
   , Type (..)
   , Error (..)
