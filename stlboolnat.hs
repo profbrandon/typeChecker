@@ -5,13 +5,18 @@
 --   Abstractions
 --   Application
 --   Variables
+--   Conditionals
+--   Boolean Values
+--   Natural Numbers
 
 -- Supported Typing Features:
 
 --   Arrow Types (Function Types)
 --   Type Variables
+--   Bool Type
+--   Nat Type
 
-module STLambda
+module STLambdaBoolNat
   ( Term (..)
   , Type (..)
   , Error (..)
@@ -28,14 +33,25 @@ where
 data Term = Abs String Type Term
           | App Term Term
           | Var Int
+          | If Term Term Term
+          | Succ Term
+          | Pred Term
+          | IsZero Term
+          | Tru
+          | Fls
+          | Zero
 
 data Type = Arrow Type Type
-          | TVar  String
+          | TVar String
+          | Bool
+          | Nat
            deriving Eq
 
 data Error = ParamMismatch Type Type
-           | MissingArrow Term
+           | MissingArrow Type
            | UnboundVar VContext Int
+           | NonBoolGaurd Type
+           | CondBranchMismatch Type Type
 
 type Function a b = a -> Maybe b
 
@@ -67,6 +83,13 @@ shiftBindings ctx = \x -> ctx (x - 1)
 -- Show Functions
 
 showTerm :: VContext -> Term -> String
+showTerm _   Zero          = "0"
+showTerm _   Tru           = "True"
+showTerm _   Fls           = "False"
+showTerm ctx (Succ t)      = "succ (" ++ showTerm ctx t ++ ")"
+showTerm ctx (Pred t)      = "pred (" ++ showTerm ctx t ++ ")"
+showTerm ctx (IsZero t)    = "iszero (" ++ showTerm ctx t ++ ")"
+showTerm ctx (If t1 t2 t3) = "if " ++ showTerm ctx t1 ++ " then " ++ showTerm ctx t2 ++ " else " ++ showTerm ctx t3
 showTerm ctx (Abs s ty tm) = 
   "\\" ++ s ++ " : " ++ show ty ++ ". " ++ showTerm ctx' tm
   where ctx' = pushBinding ctx (s, ty)
@@ -78,6 +101,8 @@ showTerm ctx (Var v)       =
     Just (s, _) -> s
 
 showType :: Type -> String
+showType Nat         = "Nat"
+showType Bool        = "Bool"
 showType (Arrow a b) =
   case a of
     Arrow _ _ -> wparen
@@ -86,9 +111,11 @@ showType (Arrow a b) =
 showType (TVar s)    = s
 
 showError :: Error -> String
-showError (ParamMismatch t1 t2) = "expected type (" ++ show t1 ++ "), supplied type (" ++ show t2 ++ ")"
-showError (MissingArrow t)      = "expected arrow type in the term \'" ++ show t ++ "\'" 
-showError (UnboundVar ctx i)    = "variable indexed by \'" ++ show i ++ "\' not in the present context" 
+showError (ParamMismatch t1 t2) = "Parameter type mismatch. Expected type (" ++ show t1 ++ "), supplied type (" ++ show t2 ++ ")"
+showError (MissingArrow t)      = "Expected arrow type, supplied type (" ++ show t ++ ")" 
+showError (UnboundVar ctx i)    = "Variable indexed by \'" ++ show i ++ "\' not in the present context" 
+showError (NonBoolGaurd t)      = "Expected type Bool to guard, supplied type (" ++ show t ++ ")"
+showError (CondBranchMismatch t1 t2) = "Type mismatch in conditional branchs. (" ++ show t1 ++ ") is not equivalent to (" ++ show t2 ++ ")"
 
 
 
@@ -106,6 +133,9 @@ typeof :: Term -> Either Error Type
 typeof = typeof0 (toFunct [])
 
 typeof0 :: VContext -> Term -> Either Error Type
+typeof0 _   Zero           = return Nat
+typeof0 _   Tru            = return Bool
+typeof0 _   Fls            = return Bool
 typeof0 ctx (Abs s ty1 tm) = (Arrow ty1) <$> typeof0 ctx' tm
   where ctx' = pushBinding ctx (s, ty1)
 typeof0 ctx (App t1 t2)    = do
@@ -116,8 +146,27 @@ typeof0 ctx (App t1 t2)    = do
       if ty11 == ty2
         then Right ty12
         else Left $ ParamMismatch ty11 ty2
-    _            -> Left $ MissingArrow (App t1 t2) 
+    _            -> Left $ MissingArrow ty1
 typeof0 ctx (Var v)        = 
   case ctx v of
     Nothing     -> Left $ UnboundVar ctx v
     Just (_, t) -> Right t
+typeof0 ctx (If t1 t2 t3)  = do
+  ty1 <- typeof0 ctx t1
+  ty2 <- typeof0 ctx t2
+  ty3 <- typeof0 ctx t3
+  if ty1 == Bool
+    then if ty2 == ty3
+        then Right ty2
+        else Left $ CondBranchMismatch ty2 ty3
+    else Left $ NonBoolGaurd ty1 
+typeof0 ctx (Succ t)       = typeofHelper1 ctx t Nat
+typeof0 ctx (Pred t)       = typeofHelper1 ctx t Nat
+typeof0 ctx (IsZero t)     = typeofHelper1 ctx t Bool
+
+typeofHelper1 :: VContext -> Term -> Type -> Either Error Type
+typeofHelper1 ctx t rty = do
+  ty <- typeof0 ctx t
+  if ty == Nat
+    then return rty
+    else Left $ ParamMismatch Nat ty

@@ -5,13 +5,16 @@
 --   Abstractions
 --   Application
 --   Variables
+--   Tuples
+--   Tuple Projections
 
 -- Supported Typing Features:
 
 --   Arrow Types (Function Types)
 --   Type Variables
+--   Tuple Types:  (a, b,...,c)
 
-module STLambda
+module STLambdaTuple
   ( Term (..)
   , Type (..)
   , Error (..)
@@ -28,14 +31,18 @@ where
 data Term = Abs String Type Term
           | App Term Term
           | Var Int
+          | Tup [Term]
+          | At Int Term
 
 data Type = Arrow Type Type
           | TVar  String
+          | TTup [Type]
            deriving Eq
 
-data Error = ParamMismatch Type Type
-           | MissingArrow Term
-           | UnboundVar VContext Int
+data Error = ParamMismatch Type     Type
+           | MissingArrow  Term
+           | UnboundVar    VContext Int
+           | IncProj Int Int
 
 type Function a b = a -> Maybe b
 
@@ -67,6 +74,7 @@ shiftBindings ctx = \x -> ctx (x - 1)
 -- Show Functions
 
 showTerm :: VContext -> Term -> String
+showTerm ctx (At i t)      = "(" ++ showTerm ctx t ++ ")." ++ show i 
 showTerm ctx (Abs s ty tm) = 
   "\\" ++ s ++ " : " ++ show ty ++ ". " ++ showTerm ctx' tm
   where ctx' = pushBinding ctx (s, ty)
@@ -76,8 +84,15 @@ showTerm ctx (Var v)       =
   case ctx v of
     Nothing     -> "(Var " ++ show v ++ ")"
     Just (s, _) -> s
+showTerm ctx (Tup ts) = "(" ++ showTuple ts' ++ ")" where ts' = map (showTerm ctx) ts
+
+showTuple :: [String] -> String
+showTuple []     = ""
+showTuple [t]    = t
+showTuple (t:ts) = t ++ "," ++ showTuple ts
 
 showType :: Type -> String
+showType (TTup ts)   = "(" ++ showTuple ts' ++ ")" where ts' = map (showType) ts
 showType (Arrow a b) =
   case a of
     Arrow _ _ -> wparen
@@ -88,7 +103,9 @@ showType (TVar s)    = s
 showError :: Error -> String
 showError (ParamMismatch t1 t2) = "expected type (" ++ show t1 ++ "), supplied type (" ++ show t2 ++ ")"
 showError (MissingArrow t)      = "expected arrow type in the term \'" ++ show t ++ "\'" 
-showError (UnboundVar ctx i)    = "variable indexed by \'" ++ show i ++ "\' not in the present context" 
+showError (UnboundVar ctx i)    = "variable indexed by \'" ++ show i ++ "\' not in the present context"
+showError (IncProj 0 i2)        = "cannot project elements of an empty tuple"
+showError (IncProj i1 i2)       = "projection in range 0 <= p < " ++ show (i1 - 1) ++ " expected, but supplied projection of " ++ show i2
 
 
 
@@ -121,3 +138,13 @@ typeof0 ctx (Var v)        =
   case ctx v of
     Nothing     -> Left $ UnboundVar ctx v
     Just (_, t) -> Right t
+typeof0 ctx (Tup ts)       = do
+  ts' <- mapM (typeof0 ctx) ts
+  return $ TTup ts'
+typeof0 ctx (At i t)       = do
+  ty <- typeof0 ctx t
+  case ty of
+    TTup ts -> if length ts > i
+      then return $ ts !! i
+      else Left $ IncProj (length ts) i
+    _       -> Left $ ParamMismatch (TTup [TVar "..."]) ty

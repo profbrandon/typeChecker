@@ -5,13 +5,15 @@
 --   Abstractions
 --   Application
 --   Variables
+--   Pairs
 
 -- Supported Typing Features:
 
 --   Arrow Types (Function Types)
 --   Type Variables
+--   Pair Type:  (a, b)
 
-module STLambda
+module STLambdaPair
   ( Term (..)
   , Type (..)
   , Error (..)
@@ -28,9 +30,13 @@ where
 data Term = Abs String Type Term
           | App Term Term
           | Var Int
+          | Pair Term Term
+          | Fst Term
+          | Snd Term
 
 data Type = Arrow Type Type
           | TVar  String
+          | TPair Type Type
            deriving Eq
 
 data Error = ParamMismatch Type Type
@@ -67,17 +73,20 @@ shiftBindings ctx = \x -> ctx (x - 1)
 -- Show Functions
 
 showTerm :: VContext -> Term -> String
+showTerm ctx (Fst t)       = "fst (" ++ showTerm ctx t ++ ")"
+showTerm ctx (Snd t)       = "snd (" ++ showTerm ctx t ++ ")"
+showTerm ctx (Pair t1 t2)  = "(" ++ showTerm ctx t1 ++ "," ++ showTerm ctx t2 ++ ")"
 showTerm ctx (Abs s ty tm) = 
   "\\" ++ s ++ " : " ++ show ty ++ ". " ++ showTerm ctx' tm
   where ctx' = pushBinding ctx (s, ty)
-showTerm ctx (App t1 t2)   = 
-  "(" ++ showTerm ctx t1 ++ ") (" ++ showTerm ctx t2 ++ ")"
+showTerm ctx (App t1 t2)   = "(" ++ showTerm ctx t1 ++ ") (" ++ showTerm ctx t2 ++ ")"
 showTerm ctx (Var v)       = 
   case ctx v of
     Nothing     -> "(Var " ++ show v ++ ")"
     Just (s, _) -> s
 
 showType :: Type -> String
+showType (TPair a b)  = "(" ++ showType a ++ "," ++ showType b ++ ")"
 showType (Arrow a b) =
   case a of
     Arrow _ _ -> wparen
@@ -106,8 +115,7 @@ typeof :: Term -> Either Error Type
 typeof = typeof0 (toFunct [])
 
 typeof0 :: VContext -> Term -> Either Error Type
-typeof0 ctx (Abs s ty1 tm) = (Arrow ty1) <$> typeof0 ctx' tm
-  where ctx' = pushBinding ctx (s, ty1)
+typeof0 ctx (Abs s ty1 tm) = (Arrow ty1) <$> typeof0 ctx' tm where ctx' = pushBinding ctx (s, ty1)
 typeof0 ctx (App t1 t2)    = do
   ty1 <- typeof0 ctx t1
   ty2 <- typeof0 ctx t2
@@ -121,3 +129,17 @@ typeof0 ctx (Var v)        =
   case ctx v of
     Nothing     -> Left $ UnboundVar ctx v
     Just (_, t) -> Right t
+typeof0 ctx (Pair t1 t2)   = do
+  ty1 <- typeof0 ctx t1
+  ty2 <- typeof0 ctx t2
+  return $ TPair ty1 ty2
+typeof0 ctx (Fst t)        = do
+  ty <- typeof0 ctx t
+  case ty of
+    TPair a b -> return a
+    _         -> Left $ ParamMismatch (TPair (TVar "a") (TVar "b")) ty
+typeof0 ctx (Snd t)        = do
+  ty <- typeof0 ctx t
+  case ty of
+    TPair a b -> return b
+    _         -> Left $ ParamMismatch (TPair (TVar "a") (TVar "b")) ty
