@@ -1,8 +1,5 @@
 # typeChecker
 
-stl.hs:         Simply-Typed Lambda Calculus
-stlbool.hs:     Simply-Typed Lambda Calculus with Booleans
-stlnatbool.hs:  Simply-Typed Lambda Calculus with Booleans and Natural Numbers
-stlpair.hs:     Simply-Typed Lambda Calculus with Pairs
-stltuple.hs:    Simply-Typed Lambda Calculus with Tuples
-stlrecord.hs:   Simply-Typed Lambda Calculus with Records
+A repository full of type checkers for the simply-typed lambda calculus and it's extensions.
+testtc.hs contains my test type checker where I combine elements of the other type checkers.
+Type checkers for Booleans, Natural Numbers, Pairs, Tuples, and Records.
