@@ -33,126 +33,19 @@ module TypeChecker
   , TExpr (..)
   , TContext (..)
   , VContext (..)
-  , showTerm
-  , showType
-  , addBinding
-  , pushBinding
-  , shiftBindings
   , typeof
   , subtype
   , (<:)
   )
 where
 
-data Term = Abs String Type Term
-          | App Term Term
-          | Var Int
-          | Fix Term
-          | If Term Term Term
-          | Tru
-          | Fls
-          | Succ Term
-          | Pred Term
-          | IsZero Term
-          | Zero
-          | EUnit
-          | Error
-
-data Type = Forall String Type
-          | Type TExpr
-          | Top
-          | Bottom
-          deriving Eq
-
-data TExpr = Arrow TExpr TExpr
-           | TVar String
-           | Bool
-           | Nat
-           | Unit
-           deriving Eq
-
-type Function a b = a -> Maybe b
-
-instance Show Term where
-  show = showTerm (\a -> Nothing)
-
-instance Show Type where
-  show = showType (\a -> Nothing)
-
-instance Show TExpr where
-  show = showTExpr (\a -> Nothing) 
-
-
-
--- Contexts
-
-type TContext = Function String String
-type VContext = Function Int (String, Type)
-
-addBinding :: Eq a => Function a b -> a -> b -> Function a b
-addBinding f a b = \x -> if x == a then Just b else f x
-
-pushBinding :: VContext -> (String, Type) -> VContext
-pushBinding ctx p = addBinding (shiftBindings ctx) 0 p
-
-shiftBindings :: VContext -> VContext
-shiftBindings ctx = \x -> ctx (x - 1)
-
-
-
--- Show Functions
-
-showTerm :: VContext -> Term -> String
-showTerm ctx (Abs s ty tm) = 
-  "\\" ++ s ++ " : " ++ show ty ++ ". " ++ showTerm ctx' tm
-  where ctx' = pushBinding ctx (s, ty)
-showTerm ctx (App t1 t2)   = 
-  "(" ++ showTerm ctx t1 ++ ") (" ++ showTerm ctx t2 ++ ")"
-showTerm ctx (Var v)       = 
-  case ctx v of
-    Nothing     -> error "attempted access of unbound variable"
-    Just (s, _) -> s
-showTerm ctx (Fix t)       = "fix (" ++ showTerm ctx t ++ ")"
-showTerm ctx (If t1 t2 t3) =
-  "if " ++ showTerm ctx t1 ++ " then " ++ showTerm ctx t2 ++ " else " ++ showTerm ctx t3
-showTerm ctx (Succ t)      = "succ (" ++ showTerm ctx t ++ ")"
-showTerm ctx (Pred t)      = "pred (" ++ showTerm ctx t ++ ")"
-showTerm ctx (IsZero t)    = "iszero (" ++ showTerm ctx t ++ ")"
-showTerm _   Tru           = "True"
-showTerm _   Fls           = "False"
-showTerm _   Zero          = "0"
-showTerm _   EUnit         = "()"
-showTerm _   Error         = "error"
-
-showType :: TContext -> Type -> String
-showType ctx (Forall n ty) = 
-  "forall " ++ n ++ ". (" ++ showType ctx' ty ++ ")"
-  where ctx' = addBinding ctx n n
-showType ctx (Type te)     = showTExpr ctx te
-showType _   Top           = "Top"
-showType _   Bottom        = "Bottom"
-
-showTExpr :: TContext -> TExpr -> String
-showTExpr ctx (Arrow a b) =
-  case a of
-    Arrow _ _ -> wparen
-    _         -> showTExpr ctx a ++ " -> " ++ showTExpr ctx b
-    where wparen = "(" ++ showTExpr ctx a ++ ") -> " ++ showTExpr ctx b
-showTExpr ctx (TVar s)    =
-  case ctx s of
-    Nothing -> error $ "attempted access of unbound type variable \'" ++ s ++ "\'"
-    _       -> s
-showTExpr ctx (Bool)      = "Bool"
-showTExpr ctx (Nat)       = "Nat"
-showTExpr ctx (Unit)     = "()"
+import TypeChecker.Utils
+import TypeChecker.Types
+import Language.AbstractSyntax
 
 
 
 -- Operations on Universal Quantifiers
-
-commute :: Type -> Type
-commute (Forall n1 (Forall n2 t')) = Forall n2 (Forall n1 t')
-commute _ = error "swapUQ requires arguments with two universal quantifiers"
 
 condense :: Type -> Type
 condense t = condense2 (\a -> Nothing) t
@@ -162,7 +55,7 @@ condense2 ctx (Forall n ty) =
   case ctx n of
     Nothing -> if hasTypeVar n ty then Forall n ty' else ty'
     _       -> ty'
-    where ctx' = addBinding ctx n n
+    where ctx' = addBinding n n ctx
           ty'  = condense2 ctx' ty
 condense2 ctx ty = ty
 
@@ -252,9 +145,9 @@ renameUnique t1 observer =
   in renameAll mapping t1
 
 substituteAll :: [(String, Type)] -> Type -> Type
-substituteAll [] t = t
+substituteAll [] t    = t
 substituteAll subs t1 = 
-  let getSub     = toFunct subs
+  let getSub     = toFunction subs
       (qs1, t1') = separate t1
       (qs2, t2)  = substituteAll0 (getSub) t1'
   in quantify (qs1 ++ qs2, t2)
@@ -272,10 +165,6 @@ substituteAll0 getSub t =
         Just ty -> separate ty
     t'        -> ([], t')
 
-toFunct :: Eq a => [(a, b)] -> Function a b
-toFunct []     = \a -> Nothing
-toFunct (x:xs) = \n -> if n == a then Just b else (toFunct xs) n where (a, b) = x 
-
 
 
 -- Typing
@@ -286,7 +175,7 @@ infix 4 <:
 (<:) = subtype
 
 typeof :: Term -> Type
-typeof = typeof0 (toFunct [])
+typeof = typeof0 (toFunction [])
 
 typeof0 :: VContext -> Term -> Type
 typeof0 ctx (Abs s ty1 tm) = 
