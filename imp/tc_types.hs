@@ -4,6 +4,7 @@ module TypeChecker.Types
   ( Type (..)
   , TExpr (..)
   , TContext (..)
+  , nilmap
   )
 where
 
@@ -25,7 +26,7 @@ data TExpr = Arrow TExpr TExpr
 type TContext = Function String String
 
 instance Show Type where
-  show = showType (toFunction [])
+  show = showType nilmap
 
 instance Show TExpr where
   show = showTExpr
@@ -44,4 +45,4 @@ showTExpr (TVar n)    = n
 showTExpr (Arrow a b) =
   case a of
     Arrow _ _ -> "(" ++ show a ++ ") -> " ++ show b
-    _         -> show a ++ "->" ++ show b
+    _         -> show a ++ " -> " ++ show b

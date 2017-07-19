@@ -28,11 +28,13 @@
 --   Subtyping
 
 module TypeChecker
-  ( Term (..)
-  , Type (..)
-  , TExpr (..)
-  , TContext (..)
-  , VContext (..)
+  ( Term(..)
+  , Type(..)
+  , TExpr(..)
+  , TContext(..)
+  , VContext(..)
+  , nilmap
+  , pushBinding
   , typeof
   , subtype
   , (<:)
@@ -175,7 +177,7 @@ infix 4 <:
 (<:) = subtype
 
 typeof :: Term -> Type
-typeof = typeof0 (toFunction [])
+typeof = typeof0 nilmap
 
 typeof0 :: VContext -> Term -> Type
 typeof0 ctx (Abs s ty1 tm) = 

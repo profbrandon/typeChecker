@@ -3,6 +3,7 @@
 module Language.AbstractSyntax
   ( Term(..)
   , VContext(..)
+  , nilmap
   , pushBinding
   )
 where
@@ -27,7 +28,7 @@ data Term = Abs    String Type Term
 type VContext = Function Int (String, Type)
 
 instance Show Term where
-  show = showTerm (toFunction [])
+  show = showTerm nilmap
 
 shiftBindings :: VContext -> VContext
 shiftBindings ctx = \n -> ctx $ n - 1
@@ -48,9 +49,10 @@ showTerm ctx (Succ t)      = "succ (" ++ showTerm ctx t ++ ")"
 showTerm ctx (Pred t)      = "pred (" ++ showTerm ctx t ++ ")"
 showTerm ctx (Abs s ty te) = "\\" ++ s ++ " : " ++ show ty ++ ". " ++ showTerm ctx' te where ctx' = pushBinding ctx (s, ty)
 showTerm ctx (App t1 t2)   =
-  case t1 of
-    Abs _ _ _ -> "(" ++ showTerm ctx t1 ++ ") " ++ showTerm ctx t2
-    _         -> showTerm ctx t1 ++ " " ++ showTerm ctx t2
+  front ++ " " ++ back
+  where s t   = showTerm ctx t
+        front = case t1 of Abs _ _ _ -> "(" ++ s t1 ++ ")"; _ -> s t1
+        back  = case t2 of App _ _   -> "(" ++ s t2 ++ ")"; _ -> s t2
 showTerm ctx (Var i)       =
   case ctx i of
     Nothing     -> "(Var " ++ show i ++ ")"
