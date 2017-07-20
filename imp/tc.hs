@@ -35,8 +35,10 @@ module TypeChecker
   , VContext(..)
   , nilmap
   , pushBinding
+  , splitArrow
   , typeof
   , subtype
+  , subtype0
   , (<:)
   )
 where
@@ -49,6 +51,8 @@ import Language.AbstractSyntax
 
 -- Operations on Universal Quantifiers
 
+-- Condenses Quantifiers
+   -- e.g.,  forall a. forall a. t ==> forall a. t
 condense :: Type -> Type
 condense t = condense2 (\a -> Nothing) t
 
@@ -61,6 +65,8 @@ condense2 ctx (Forall n ty) =
           ty'  = condense2 ctx' ty
 condense2 ctx ty = ty
 
+-- Separates quantifiers from their type expressions
+   -- e.g., forall a. a -> a ==> ("a", a -> a)
 separate :: Type -> ([String], TExpr)
 separate (Type te)     = ([], te)
 separate (Forall n ty) = (n:ns, te) where (ns, te) = separate ty
@@ -71,6 +77,8 @@ buildArrow t1 t2 =
       (n2, te2) = separate t2
   in quantify (n1 ++ n2, Arrow te1 te2)
 
+-- Splits an arrow type into the domain and codomain types, keeping quantifiers if needed
+   -- e.g., forall a. forall b. a -> b ==> (forall a. a, forall b. b)
 splitArrow :: Type -> (Type, Type)
 splitArrow t = 
   case te of
@@ -85,6 +93,7 @@ isArrow (Forall n t)       = isArrow t
 isArrow (Type (Arrow _ _)) = True
 isArrow _                  = False
 
+-- Inverse of separate (i.e., quantify . separate == id)
 quantify :: ([String], TExpr) -> Type
 quantify = condense . quantify2
 
@@ -130,6 +139,7 @@ renameAll (x:xs) t =
   where (s1, s2) = x
         t'       = renameAll xs t
 
+-- Builds unique type variable names that are not present in the type provided
 uniqueNames :: [String] -> Type -> [String]
 uniqueNames []     t = []
 uniqueNames (x:xs) t =
@@ -139,11 +149,16 @@ uniqueNames (x:xs) t =
   where t'   = condense t
         back = uniqueNames xs t'
 
-renameUnique :: Type -> Type -> Type
-renameUnique t1 observer = 
-  let (names, te1) = separate t1
-      names'       = uniqueNames names observer
-      mapping      = zip names names'
+-- Renames type variables in the second parameter to names, unique from those in the third parameter,
+-- unless the type variables are bound in a type context
+renameUnique :: TContext -> Type -> Type -> Type
+renameUnique ctx t1 observer =
+  let (names, _) = separate $ condense t1
+      names'     = filter (\n -> case ctx n of
+                                   Nothing -> True
+                                   _ -> False) names
+      names''    = uniqueNames names' observer
+      mapping    = zip names' names''
   in renameAll mapping t1
 
 substituteAll :: [(String, Type)] -> Type -> Type
@@ -177,18 +192,19 @@ infix 4 <:
 (<:) = subtype
 
 typeof :: Term -> Type
-typeof = typeof0 nilmap
+typeof = typeof0 nilmap nilmap
 
-typeof0 :: VContext -> Term -> Type
-typeof0 ctx (Abs s ty1 tm) = 
+typeof0 :: TContext -> VContext -> Term -> Type
+typeof0 tctx vctx (Abs s ty1 tm) = 
   buildArrow ty1 ty2 
-  where ctx' = pushBinding ctx (s, ty1)
-        ty2  = typeof0 ctx' tm
-typeof0 ctx (App t1 t2)    =
+  where tctx' = addAllBindings (fst $ separate ty1) tctx
+        vctx' = pushBinding vctx (s, ty1)
+        ty2  = typeof0 tctx' vctx' tm
+typeof0 tctx vctx (App t1 t2)    =
   case separate ty1 of
-    (_, (Arrow _ _)) ->
+    (_, Arrow _ _) ->
       let (ty11, ty12)  = splitArrow ty1
-          ty2'          = renameUnique ty2 ty1
+          ty2'          = renameUnique tctx ty2 ty1
           (subs, issub) = subtype0 ty2' ty11
       in if issub 
         then substituteAll subs ty12
@@ -197,22 +213,23 @@ typeof0 ctx (App t1 t2)    =
       if ty1 == Bottom
         then Bottom
         else error "arrow type expected as applicand"
-    where ty1 = typeof0 ctx t1
-          ty2 = typeof0 ctx t2
-typeof0 ctx (Let s t1 t2)  =
-  typeof0 ctx' t2
-  where ty1 = typeof0 ctx t1
-        ctx' = pushBinding ctx (s, ty1)
-typeof0 ctx (Var v)        = 
-  case ctx v of
+    where ty1 = typeof0 tctx vctx t1
+          ty2 = typeof0 tctx vctx t2
+typeof0 tctx vctx (Let s t1 t2)  =
+  typeof0 tctx' vctx' t2
+  where ty1   = typeof0 tctx vctx t1
+        tctx' = addAllBindings (fst $ separate ty1) tctx
+        vctx' = pushBinding vctx (s, ty1)
+typeof0 tctx vctx (Var v)        = 
+  case vctx v of
     Nothing     -> error "attempted access of unbound variable in function \'typeof\'"
     Just (_, t) -> t
-typeof0 ctx (Fix t)        =
+typeof0 tctx vctx (Fix t)        =
   case separate ty of
     (qs, (Arrow _ _)) -> fst $ splitArrow ty
-    _                     -> error "expected arrow type to fix function"
-  where ty = typeof0 ctx t
-typeof0 ctx (If t1 t2 t3)  =
+    _                 -> error "expected arrow type to fix function"
+  where ty = typeof0 tctx vctx t
+typeof0 tctx vctx (If t1 t2 t3)  =
   if ty1 == Type Bool
     then if ty2 <: ty3
       then ty3
@@ -220,32 +237,32 @@ typeof0 ctx (If t1 t2 t3)  =
         then ty2
         else error "type mismatch in branches of conditional"
     else error "type \'Bool\' expected in guard of conditional"
-  where ty1 = typeof0 ctx t1
-        ty2 = typeof0 ctx t2
-        ty3 = typeof0 ctx t3
-typeof0 ctx (Succ t)       = 
+  where ty1 = typeof0 tctx vctx t1
+        ty2 = typeof0 tctx vctx t2
+        ty3 = typeof0 tctx vctx t3
+typeof0 tctx vctx (Succ t)       = 
   if ty == Type Nat 
     then Type Nat 
     else error "argument of type \'Nat\' expected to \'succ\'" 
-  where ty = typeof0 ctx t
-typeof0 ctx (Pred t)       =
+  where ty = typeof0 tctx vctx t
+typeof0 tctx vctx (Pred t)       =
   if ty == Type Nat 
     then Type Nat 
     else error "argument of type \'Nat\' expected to \'pred\'" 
-  where ty = typeof0 ctx t
-typeof0 ctx (IsZero t)     =
+  where ty = typeof0 tctx vctx t
+typeof0 tctx vctx (IsZero t)     =
   if ty == Type Nat 
     then Type Bool 
     else error "argument of type \'Nat\' expected to \'iszero\'" 
-  where ty = typeof0 ctx t
-typeof0 _   Tru            = Type Bool
-typeof0 _   Fls            = Type Bool
-typeof0 _   Zero           = Type Nat
-typeof0 _   EUnit          = Type Unit
-typeof0 _   Error          = Bottom
+  where ty = typeof0 tctx vctx t
+typeof0 _    _    Tru            = Type Bool
+typeof0 _    _    Fls            = Type Bool
+typeof0 _    _    Zero           = Type Nat
+typeof0 _    _    EUnit          = Type Unit
+typeof0 _    _    Error          = Bottom
 
 subtype :: Type -> Type -> Bool
-subtype t1          t2          = b where (_, b) = subtype0 t1 t2
+subtype t1 t2 = b where (_, b) = subtype0 t1 t2
 
 subtype0 :: Type -> Type -> ([(String, Type)], Bool)
 subtype0 t          Top         = ([], True)
@@ -258,18 +275,19 @@ subtype0 t1 t2 =
   in case (isArrow t1', isArrow t2') of
     (False, False) -> 
       case t2' of
-        Forall _ (Type (TVar n)) -> ([(n, t1)], True)
+        Forall _ (Type (TVar n)) -> ([(n, t1')], True)
         _                        -> ([], t1' == t2')
     (False, True)  -> ([], False)
     (True, False)  -> 
       case t2' of
-        Forall _ (Type (TVar n)) -> ([(n, t1)], True)
+        Forall _ (Type (TVar n)) -> ([(n, t1')], True)
         _                        -> ([], False)
     (True, True)   ->
       let (t11, t12) = splitArrow t1'
           (t21, t22) = splitArrow t2'
-          (subs, b)  = subtype0 t21 t11
-          back       = if b then subtype0 t12 $ substituteAll subs t22
+          (subs, b)  = subtype0 t11 t21
+          back       = if b then let (subs', b') = subtype0 t12 $ substituteAll subs t22
+                                 in (subs ++ subs', b')
                             else ([], False)
       in case t2' of
         Forall _ (Forall _ (Type (Arrow (TVar n) (TVar m)))) -> ([(n, t11), (m, t12)], True)

@@ -54,7 +54,7 @@ showTerm ctx (App t1 t2)   =
   front ++ " " ++ back
   where s t   = showTerm ctx t
         front = case t1 of Abs _ _ _ -> "(" ++ s t1 ++ ")"; _ -> s t1
-        back  = case t2 of App _ _   -> "(" ++ s t2 ++ ")"; _ -> s t2
+        back  = case t2 of App _ _   -> "(" ++ s t2 ++ ")"; Abs _ _ _ -> "(" ++ s t2 ++ ")"; _ -> s t2
 showTerm ctx (Var i)       =
   case ctx i of
     Nothing     -> "(Var " ++ show i ++ ")"

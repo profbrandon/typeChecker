@@ -4,6 +4,8 @@ module TypeChecker.Types
   ( Type (..)
   , TExpr (..)
   , TContext (..)
+  , addAllBindings
+  , addBinding
   , nilmap
   )
 where
@@ -31,6 +33,10 @@ instance Show Type where
 
 instance Show TExpr where
   show = showTExpr
+
+addAllBindings :: [String] -> TContext -> TContext
+addAllBindings []     ctx = ctx
+addAllBindings (x:xs) ctx = addBinding x x ctx' where ctx' = addAllBindings xs ctx
 
 showType :: TContext -> Type -> String
 showType _   Top          = "Top"
