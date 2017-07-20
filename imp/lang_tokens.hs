@@ -14,6 +14,9 @@ data Token = Id      String
            | RParen
            | ForallT
            | Arr
+           | LetT
+           | In
+           | Equ
            | FixT
            | IfT
            | Then

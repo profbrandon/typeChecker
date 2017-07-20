@@ -11,13 +11,14 @@ where
 import TypeChecker.Utils
 
 data Type = Forall String Type
-          | Type TExpr
+          | Type   TExpr
           | Bottom
           | Top
           deriving Eq
 
-data TExpr = Arrow TExpr TExpr
-           | TVar String
+data TExpr = Arrow TExpr  TExpr
+           | TVar  String
+           | TName String
            | Bool
            | Nat
            | Unit
@@ -42,6 +43,7 @@ showTExpr Bool        = "Bool"
 showTExpr Nat         = "Nat"
 showTExpr Unit        = "()"
 showTExpr (TVar n)    = n
+showTExpr (TName n)   = n
 showTExpr (Arrow a b) =
   case a of
     Arrow _ _ -> "(" ++ show a ++ ") -> " ++ show b

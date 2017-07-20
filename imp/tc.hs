@@ -199,6 +199,10 @@ typeof0 ctx (App t1 t2)    =
         else error "arrow type expected as applicand"
     where ty1 = typeof0 ctx t1
           ty2 = typeof0 ctx t2
+typeof0 ctx (Let s t1 t2)  =
+  typeof0 ctx' t2
+  where ty1 = typeof0 ctx t1
+        ctx' = pushBinding ctx (s, ty1)
 typeof0 ctx (Var v)        = 
   case ctx v of
     Nothing     -> error "attempted access of unbound variable in function \'typeof\'"
