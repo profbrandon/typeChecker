@@ -1,5 +1,6 @@
 # typeChecker
 
 A repository full of type checkers for the simply-typed lambda calculus and it's extensions.
-testtc.hs contains my test type checker where I combine elements of the other type checkers.
-Type checkers for Booleans, Natural Numbers, Pairs, Tuples, and Records.
+The directory imp contains my implementation of System F, complete with lexical analysis and parsing.
+The implementation also extends System F with Booleans, Naturals, Recursion, Top and Bottom Types,
+Unit, Errors, and Let-Polymorphism.
