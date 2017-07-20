@@ -42,7 +42,8 @@ lex (c:cs)
       ':'  -> a1 Colon 
       '('  -> a1 LParen
       ')'  -> a1 RParen
-      '0'  -> a1 ZeroT 
+      '0'  -> a1 ZeroT
+      '='  -> a1 Equ
       '-'  ->
         case cs of
           '>':cs' -> ap Arr cs'
@@ -51,6 +52,8 @@ lex (c:cs)
         case name of
           ""       -> Left UnrecognizedToken
           "forall" -> a2 ForallT
+          "let"    -> a2 LetT
+          "in"     -> a2 In
           "fix"    -> a2 FixT
           "if"     -> a2 IfT
           "then"   -> a2 Then

@@ -4,6 +4,8 @@ module TypeChecker.Types
   ( Type (..)
   , TExpr (..)
   , TContext (..)
+  , addAllBindings
+  , addBinding
   , nilmap
   )
 where
@@ -11,13 +13,14 @@ where
 import TypeChecker.Utils
 
 data Type = Forall String Type
-          | Type TExpr
+          | Type   TExpr
           | Bottom
           | Top
           deriving Eq
 
-data TExpr = Arrow TExpr TExpr
-           | TVar String
+data TExpr = Arrow TExpr  TExpr
+           | TVar  String
+           | TName String
            | Bool
            | Nat
            | Unit
@@ -31,6 +34,10 @@ instance Show Type where
 instance Show TExpr where
   show = showTExpr
 
+addAllBindings :: [String] -> TContext -> TContext
+addAllBindings []     ctx = ctx
+addAllBindings (x:xs) ctx = addBinding x x ctx' where ctx' = addAllBindings xs ctx
+
 showType :: TContext -> Type -> String
 showType _   Top          = "Top"
 showType _   Bottom       = "Bottom"
@@ -42,6 +49,7 @@ showTExpr Bool        = "Bool"
 showTExpr Nat         = "Nat"
 showTExpr Unit        = "()"
 showTExpr (TVar n)    = n
+showTExpr (TName n)   = n
 showTExpr (Arrow a b) =
   case a of
     Arrow _ _ -> "(" ++ show a ++ ") -> " ++ show b

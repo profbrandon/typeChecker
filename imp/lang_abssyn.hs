@@ -14,6 +14,7 @@ import TypeChecker.Types
 data Term = Abs    String Type Term
           | App    Term   Term
           | Var    Int
+          | Let    String Term Term
           | Fix    Term
           | If     Term   Term Term
           | IsZero Term
@@ -42,6 +43,7 @@ showTerm _   Fls           = "False"
 showTerm _   Zero          = "0"
 showTerm _   EUnit         = "()"
 showTerm _   Error         = "Error"
+showTerm ctx (Let s t1 t2) = "let " ++ s ++ " = " ++ showTerm ctx t1 ++ " in " ++ showTerm ctx' t2 where ctx' = pushBinding ctx (s, Type $ TName "Dummy")
 showTerm ctx (Fix t)       = "fix (" ++ showTerm ctx t ++ ")"
 showTerm ctx (If t1 t2 t3) = "if " ++ s t1 ++ " then " ++ s t2 ++ " else " ++ s t3 where s a = showTerm ctx a
 showTerm ctx (IsZero t)    = "iszero (" ++ showTerm ctx t ++ ")"
@@ -52,7 +54,7 @@ showTerm ctx (App t1 t2)   =
   front ++ " " ++ back
   where s t   = showTerm ctx t
         front = case t1 of Abs _ _ _ -> "(" ++ s t1 ++ ")"; _ -> s t1
-        back  = case t2 of App _ _   -> "(" ++ s t2 ++ ")"; _ -> s t2
+        back  = case t2 of App _ _   -> "(" ++ s t2 ++ ")"; Abs _ _ _ -> "(" ++ s t2 ++ ")"; _ -> s t2
 showTerm ctx (Var i)       =
   case ctx i of
     Nothing     -> "(Var " ++ show i ++ ")"
