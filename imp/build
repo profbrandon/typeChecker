@@ -1,4 +1,4 @@
 
 #!/bin/bash
 
-ghc -o test interpret.hs eval.hs lexer.hs parser.hs tc.hs tc_types.hs tc_utils.hs lang_tokens.hs lang_abssyn.hs
+ghc -o BINT src/interpret.hs src/eval.hs src/lexer.hs src/parser.hs src/tc.hs src/tc_types.hs src/tc_utils.hs src/lang_tokens.hs src/lang_abssyn.hs
