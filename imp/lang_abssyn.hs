@@ -5,6 +5,7 @@ module Language.AbstractSyntax
   , VContext(..)
   , nilmap
   , pushBinding
+  , isValue
   )
 where
 
@@ -37,6 +38,21 @@ shiftBindings ctx = \n -> ctx $ n - 1
 pushBinding :: VContext -> (String, Type) -> VContext
 pushBinding ctx p = addBinding 0 p ctx' where ctx' = shiftBindings ctx
 
+isValue :: Term -> Bool
+isValue Tru         = True
+isValue Fls         = True
+isValue Zero        = True
+isValue EUnit       = True
+isValue Error       = True
+isValue (Abs _ _ _) = True
+isValue (Succ t)    = isValue t
+isValue _           = False
+
+toInt :: Term -> Int
+toInt Zero     = 0
+toInt (Succ t) = 1 + (toInt t)
+toInt _        = error "non-numeric args supplied to \'toInt\'"
+
 showTerm :: VContext -> Term -> String
 showTerm _   Tru           = "True"
 showTerm _   Fls           = "False"
@@ -47,7 +63,9 @@ showTerm ctx (Let s t1 t2) = "let " ++ s ++ " = " ++ showTerm ctx t1 ++ " in " +
 showTerm ctx (Fix t)       = "fix (" ++ showTerm ctx t ++ ")"
 showTerm ctx (If t1 t2 t3) = "if " ++ s t1 ++ " then " ++ s t2 ++ " else " ++ s t3 where s a = showTerm ctx a
 showTerm ctx (IsZero t)    = "iszero (" ++ showTerm ctx t ++ ")"
-showTerm ctx (Succ t)      = "succ (" ++ showTerm ctx t ++ ")"
+showTerm ctx (Succ t)
+  | isValue t = show $ toInt (Succ t)
+  | otherwise = "succ (" ++ showTerm ctx t ++ ")"
 showTerm ctx (Pred t)      = "pred (" ++ showTerm ctx t ++ ")"
 showTerm ctx (Abs s ty te) = "\\" ++ s ++ " : " ++ show ty ++ ". " ++ showTerm ctx' te where ctx' = pushBinding ctx (s, ty)
 showTerm ctx (App t1 t2)   =

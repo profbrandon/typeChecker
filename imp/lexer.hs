@@ -8,7 +8,7 @@ module Lexer
 where
 
 
-import Data.Char (isSpace, isAlphaNum)
+import Data.Char (isSpace, isAlphaNum, isDigit)
 import Prelude hiding (lex)
 import Language.Tokens
 
@@ -25,16 +25,31 @@ left f (a, b) = (f a, b)
 right :: (b -> c) -> (a, b) -> (a, c)
 right f (a, b) = (a, f b)
 
-identifier :: String -> (String, String)
-identifier [] = ([], [])
-identifier (c:cs)
-  | isAlphaNum c = left (c:) $ identifier cs
+getWhile :: (Char -> Bool) -> String -> (String, String)
+getWhile p [] = ([], [])
+getWhile p (c:cs)
+  | p c       = left (c:) $ getWhile p cs
   | otherwise = ([], (c:cs))
+
+identifier :: String -> (String, String)
+identifier = getWhile isAlphaNum
+
+natural :: String -> (String, String)
+natural = getWhile isDigit
+
+convertNat :: Int -> [Token]
+convertNat 0 = [ZeroT]
+convertNat i = SuccT:LParen:ts ++ [RParen] where ts = convertNat $ i - 1
 
 lex :: String -> Either Error [Token]
 lex [] = return []
 lex (c:cs)
   | isSpace c = lex cs
+  | isDigit c = do
+    let (num, back) = natural (c:cs)
+    let ts          = convertNat (read num :: Int)
+    b <- lex back
+    return $ ts ++ b 
   | otherwise =
     case c of
       '\\' -> a1 Lambda
@@ -42,7 +57,6 @@ lex (c:cs)
       ':'  -> a1 Colon 
       '('  -> a1 LParen
       ')'  -> a1 RParen
-      '0'  -> a1 ZeroT
       '='  -> a1 Equ
       '-'  ->
         case cs of

@@ -35,17 +35,26 @@ module TypeChecker
   , VContext(..)
   , nilmap
   , pushBinding
-  , splitArrow
   , typeof
-  , subtype
-  , subtype0
-  , (<:)
+  , special
+  , (<!)
   )
 where
 
 import TypeChecker.Utils
 import TypeChecker.Types
 import Language.AbstractSyntax
+
+
+data Error = ParamTypeMismatch
+           | IfBranchMismatch
+           | ExpectedArrow
+           | ExpectedBoolGuard
+           | ExpectedNattoSucc
+           | ExpectedNattoPred
+           | ExpectedNattoIsZero
+           | UnboundVar
+           deriving Show
 
 
 
@@ -85,7 +94,6 @@ splitArrow t =
     Arrow a b -> (a', b')
       where a' = quantify (ns, a)
             b' = quantify (ns, b)
-    _         -> error "non-arrow type provided to splitArrow"
     where (ns, te) = separate t
 
 isArrow :: Type -> Bool
@@ -182,94 +190,99 @@ substituteAll0 getSub t =
         Just ty -> separate ty
     t'        -> ([], t')
 
+quantifier :: Type -> Bool
+quantifier (Forall _ _) = True
+quantifier (Type _)     = False
+
 
 
 -- Typing
 
-infix 4 <:
+infix 4 <!
 
-(<:) :: Type -> Type -> Bool
-(<:) = subtype
+(<!) :: Type -> Type -> Bool
+(<!) = special
 
-typeof :: Term -> Type
+--(<:) :: Type -> Type -> Bool
+--(<:) = subtype
+
+typeof :: Term -> Either Error Type
 typeof = typeof0 nilmap nilmap
 
-typeof0 :: TContext -> VContext -> Term -> Type
-typeof0 tctx vctx (Abs s ty1 tm) = 
-  buildArrow ty1 ty2 
+typeof0 :: TContext -> VContext -> Term -> Either Error Type
+typeof0 tctx vctx (Abs s ty1 tm) = do
+  ty2 <- typeof0 tctx' vctx' tm
+  return $ buildArrow ty1 ty2 
   where tctx' = addAllBindings (fst $ separate ty1) tctx
         vctx' = pushBinding vctx (s, ty1)
-        ty2  = typeof0 tctx' vctx' tm
-typeof0 tctx vctx (App t1 t2)    =
+typeof0 tctx vctx (App t1 t2)    = do
+  ty1 <- typeof0 tctx vctx t1
+  ty2 <- typeof0 tctx vctx t2
   case separate ty1 of
     (_, Arrow _ _) ->
       let (ty11, ty12)  = splitArrow ty1
           ty2'          = renameUnique tctx ty2 ty1
-          (subs, issub) = subtype0 ty2' ty11
-      in if issub 
-        then substituteAll subs ty12
-        else error "parameter type mismatch"
+          (subs, isspe) = special0 ty11 ty2'
+      in if isspe
+        then return $ substituteAll subs ty12
+        else Left $ ParamTypeMismatch
     _            ->
       if ty1 == Bottom
-        then Bottom
-        else error "arrow type expected as applicand"
-    where ty1 = typeof0 tctx vctx t1
-          ty2 = typeof0 tctx vctx t2
-typeof0 tctx vctx (Let s t1 t2)  =
+        then return Bottom
+        else Left $ ExpectedArrow
+typeof0 tctx vctx (Let s t1 t2)  = do
+  ty1 <- typeof0 tctx vctx t1
+  let tctx' = addAllBindings (fst $ separate ty1) tctx
+      vctx' = pushBinding vctx (s, ty1)
   typeof0 tctx' vctx' t2
-  where ty1   = typeof0 tctx vctx t1
-        tctx' = addAllBindings (fst $ separate ty1) tctx
-        vctx' = pushBinding vctx (s, ty1)
 typeof0 tctx vctx (Var v)        = 
   case vctx v of
-    Nothing     -> error "attempted access of unbound variable in function \'typeof\'"
-    Just (_, t) -> t
-typeof0 tctx vctx (Fix t)        =
+    Nothing     -> Left UnboundVar
+    Just (_, t) -> return t
+typeof0 tctx vctx (Fix t)        = do
+  ty <- typeof0 tctx vctx t
   case separate ty of
-    (qs, (Arrow _ _)) -> fst $ splitArrow ty
-    _                 -> error "expected arrow type to fix function"
-  where ty = typeof0 tctx vctx t
-typeof0 tctx vctx (If t1 t2 t3)  =
+    (qs, (Arrow _ _)) -> return $ fst $ splitArrow ty
+    _                 -> Left ExpectedArrow
+typeof0 tctx vctx (If t1 t2 t3)  = do
+  ty1 <- typeof0 tctx vctx t1
+  ty2 <- typeof0 tctx vctx t2
+  ty3 <- typeof0 tctx vctx t3
   if ty1 == Type Bool
-    then if ty2 <: ty3
-      then ty3
-      else if ty3 <: ty2
-        then ty2
-        else error "type mismatch in branches of conditional"
-    else error "type \'Bool\' expected in guard of conditional"
-  where ty1 = typeof0 tctx vctx t1
-        ty2 = typeof0 tctx vctx t2
-        ty3 = typeof0 tctx vctx t3
-typeof0 tctx vctx (Succ t)       = 
+    then if ty2 <! ty3
+      then return ty2
+      else if ty3 <! ty2
+        then return ty3
+        else Left IfBranchMismatch
+    else Left ExpectedBoolGuard
+typeof0 tctx vctx (Succ t)       = do
+  ty <- typeof0 tctx vctx t
   if ty == Type Nat 
-    then Type Nat 
-    else error "argument of type \'Nat\' expected to \'succ\'" 
-  where ty = typeof0 tctx vctx t
-typeof0 tctx vctx (Pred t)       =
+    then return $ Type Nat 
+    else Left ExpectedNattoSucc 
+typeof0 tctx vctx (Pred t)       = do
+  ty <- typeof0 tctx vctx t
   if ty == Type Nat 
-    then Type Nat 
-    else error "argument of type \'Nat\' expected to \'pred\'" 
-  where ty = typeof0 tctx vctx t
-typeof0 tctx vctx (IsZero t)     =
+    then return $ Type Nat 
+    else Left ExpectedNattoPred
+typeof0 tctx vctx (IsZero t)     = do
+  ty <- typeof0 tctx vctx t
   if ty == Type Nat 
-    then Type Bool 
-    else error "argument of type \'Nat\' expected to \'iszero\'" 
-  where ty = typeof0 tctx vctx t
-typeof0 _    _    Tru            = Type Bool
-typeof0 _    _    Fls            = Type Bool
-typeof0 _    _    Zero           = Type Nat
-typeof0 _    _    EUnit          = Type Unit
-typeof0 _    _    Error          = Bottom
+    then return $ Type Bool 
+    else Left ExpectedNattoIsZero 
+typeof0 _    _    Tru            = return $ Type Bool
+typeof0 _    _    Fls            = return $ Type Bool
+typeof0 _    _    Zero           = return $ Type Nat
+typeof0 _    _    EUnit          = return $ Type Unit
+typeof0 _    _    Error          = return $ Bottom
 
-subtype :: Type -> Type -> Bool
-subtype t1 t2 = b where (_, b) = subtype0 t1 t2
+-- Specialization relation
+-- t1 is a specialization of t2
+special :: Type -> Type -> Bool
+special t2 t1 = b where (_, b) = special0 t2 t1
 
-subtype0 :: Type -> Type -> ([(String, Type)], Bool)
-subtype0 t          Top         = ([], True)
-subtype0 Top        t           = ([], False)
-subtype0 Bottom     t           = ([], True)
-subtype0 t          Bottom      = ([], False)
-subtype0 t1 t2 =
+special0 :: Type -> Type -> ([(String, Type)], Bool)
+special0 t2 t1 =
   let t1' = condense t1
       t2' = condense t2
   in case (isArrow t1', isArrow t2') of
@@ -285,8 +298,8 @@ subtype0 t1 t2 =
     (True, True)   ->
       let (t11, t12) = splitArrow t1'
           (t21, t22) = splitArrow t2'
-          (subs, b)  = subtype0 t11 t21
-          back       = if b then let (subs', b') = subtype0 t12 $ substituteAll subs t22
+          (subs, b)  = special0 t21 t11
+          back       = if b then let (subs', b') = special0 (substituteAll subs t22) t12
                                  in (subs ++ subs', b')
                             else ([], False)
       in case t2' of
@@ -297,3 +310,6 @@ subtype0 t1 t2 =
             Forall _ (Type (Arrow _ _)) -> back
             _ -> back 
         _ -> back
+
+-- Subtype Relation
+-- subtype :: Type -> Type -> Bool
