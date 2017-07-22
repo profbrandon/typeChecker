@@ -1,4 +1,4 @@
 
 #!/bin/bash
 
-ghci lexer.hs parser.hs tc.hs tc_types.hs tc_utils.hs lang_tokens.hs lang_abssyn.hs
+ghc -o test interpret.hs eval.hs lexer.hs parser.hs tc.hs tc_types.hs tc_utils.hs lang_tokens.hs lang_abssyn.hs
