@@ -26,7 +26,7 @@ sub j s (Abs ss ty t)  = Abs ss ty t' where t' = sub (j + 1) (shiftnl 1 0 s) t
 sub j s (App t1 t2)    = App (sub j s t1) (sub j s t2)
 sub j s (Var i)        = if i == j then s else (Var i)
 sub j s (Fix t)        = Fix $ sub j s t
-sub j s (Let ss t1 t2) = Let ss (sub j s t1) (sub j s t2)
+sub j s (Let ss t1 t2) = Let ss (sub j s t1) (sub (j + 1) (shiftnl 1 0 s) t2)
 sub j s (If t1 t2 t3)  = If (sb t1) (sb t2) (sb t3) where sb = sub j s
 sub j s (Succ t)       = Succ $ sub j s t
 sub j s (Pred t)       = Pred $ sub j s t

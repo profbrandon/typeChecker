@@ -23,12 +23,10 @@ data Error = MissingParen
            | UnboundVariable
            deriving Show
 
-
 parse :: [Token] -> Either Error Term
 parse s = do
-  (b, t1, _) <- expr nilmap s
-  (_, t2, _) <- app nilmap t1 b
-  return t2
+  (_, t, _) <- expr nilmap s
+  return t
 
 expr :: VContext -> [Token] -> Either Error ([Token], Term, VContext)
 expr ctx s = do
@@ -94,7 +92,7 @@ lambda ctx (Lambda:(Id name):back) =
 llet :: VContext -> [Token] -> Either Error ([Token], Term, VContext)
 llet ctx (LetT:(Id name):Equ:back) = do
   (b1, e1, ctx') <- expr ctx back
-  let ctx' = pushBinding ctx (name, Type $ TName "Dummy")
+  let ctx' = pushBinding ctx (name, Type $ TName "")
   case b1 of
     In:b2 -> do
       (b3, e2, ctx'') <- expr ctx' b2

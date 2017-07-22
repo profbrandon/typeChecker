@@ -47,7 +47,7 @@ lex (c:cs)
   | isSpace c = lex cs
   | isDigit c = do
     let (num, back) = natural (c:cs)
-    let ts          = convertNat (read num :: Int)
+    let ts          = LParen:convertNat (read num :: Int) ++ [RParen]
     b <- lex back
     return $ ts ++ b 
   | otherwise =

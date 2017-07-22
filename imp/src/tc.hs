@@ -46,15 +46,27 @@ import TypeChecker.Types
 import Language.AbstractSyntax
 
 
-data Error = ParamTypeMismatch
-           | IfBranchMismatch
-           | ExpectedArrow
-           | ExpectedBoolGuard
-           | ExpectedNattoSucc
-           | ExpectedNattoPred
-           | ExpectedNattoIsZero
+data Error = ParamTypeMismatch   Type Type
+           | IfBranchMismatch    Type Type
+           | ExpectedArrow       Type
+           | ExpectedBoolGuard   Type
+           | ExpectedNattoSucc   Type
+           | ExpectedNattoPred   Type
+           | ExpectedNattoIsZero Type
            | UnboundVar
-           deriving Show
+
+instance Show Error where
+  show = showError
+
+showError :: Error -> String
+showError (ParamTypeMismatch t1 t2) = "parameter type mismatch. Expected type " ++ show t1 ++ ", recieved type " ++ show t2
+showError (IfBranchMismatch t1 t2)  = "type mismatch in branches of conditional. Recieved types " ++ show t1 ++ " and " ++ show t2
+showError (ExpectedArrow t)         = "expected arrow type, recieved type " ++ show t
+showError (ExpectedBoolGuard t)     = "expected argument of type Bool to guard of conditional, recieved type " ++ show t
+showError (ExpectedNattoSucc t)     = "expected argument of type Nat to \'succ\' function, recieved type " ++ show t
+showError (ExpectedNattoPred t)     = "expected argument of type Nat to \'pred\' function, recieved type " ++ show t
+showError (ExpectedNattoIsZero t)   = "expected argument of type Nat to \'iszero\' function, recieved type " ++ show t
+showError (UnboundVar)              = "unbound variable"
 
 
 
@@ -225,11 +237,11 @@ typeof0 tctx vctx (App t1 t2)    = do
           (subs, isspe) = special0 ty11 ty2'
       in if isspe
         then return $ substituteAll subs ty12
-        else Left $ ParamTypeMismatch
+        else Left $ ParamTypeMismatch ty11 ty2
     _            ->
       if ty1 == Bottom
         then return Bottom
-        else Left $ ExpectedArrow
+        else Left $ ExpectedArrow ty1
 typeof0 tctx vctx (Let s t1 t2)  = do
   ty1 <- typeof0 tctx vctx t1
   let tctx' = addAllBindings (fst $ separate ty1) tctx
@@ -243,7 +255,7 @@ typeof0 tctx vctx (Fix t)        = do
   ty <- typeof0 tctx vctx t
   case separate ty of
     (qs, (Arrow _ _)) -> return $ fst $ splitArrow ty
-    _                 -> Left ExpectedArrow
+    _                 -> Left $ ExpectedArrow ty
 typeof0 tctx vctx (If t1 t2 t3)  = do
   ty1 <- typeof0 tctx vctx t1
   ty2 <- typeof0 tctx vctx t2
@@ -253,23 +265,23 @@ typeof0 tctx vctx (If t1 t2 t3)  = do
       then return ty2
       else if ty3 <! ty2
         then return ty3
-        else Left IfBranchMismatch
-    else Left ExpectedBoolGuard
+        else Left $ IfBranchMismatch ty2 ty3
+    else Left $ ExpectedBoolGuard ty1
 typeof0 tctx vctx (Succ t)       = do
   ty <- typeof0 tctx vctx t
   if ty == Type Nat 
     then return $ Type Nat 
-    else Left ExpectedNattoSucc 
+    else Left $ ExpectedNattoSucc ty 
 typeof0 tctx vctx (Pred t)       = do
   ty <- typeof0 tctx vctx t
   if ty == Type Nat 
     then return $ Type Nat 
-    else Left ExpectedNattoPred
+    else Left $ ExpectedNattoPred ty
 typeof0 tctx vctx (IsZero t)     = do
   ty <- typeof0 tctx vctx t
   if ty == Type Nat 
     then return $ Type Bool 
-    else Left ExpectedNattoIsZero 
+    else Left $ ExpectedNattoIsZero ty
 typeof0 _    _    Tru            = return $ Type Bool
 typeof0 _    _    Fls            = return $ Type Bool
 typeof0 _    _    Zero           = return $ Type Nat
