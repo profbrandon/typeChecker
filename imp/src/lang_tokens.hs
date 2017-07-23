@@ -12,6 +12,7 @@ data Token = Id      String
            | Period
            | LParen
            | RParen
+           | Comma
            | ForallT
            | Arr
            | LetT
@@ -21,6 +22,8 @@ data Token = Id      String
            | IfT
            | Then
            | Else
+           | FstT
+           | SndT
            | IsZeroT
            | SuccT
            | PredT

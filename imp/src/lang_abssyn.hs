@@ -17,6 +17,9 @@ data Term = Abs    String Type Term
           | Var    Int
           | Let    String Term Term
           | Fix    Term
+          | Pair   Term   Term
+          | Fst    Term
+          | Snd    Term
           | If     Term   Term Term
           | IsZero Term
           | Succ   Term
@@ -45,6 +48,7 @@ isValue Zero        = True
 isValue EUnit       = True
 isValue Error       = True
 isValue (Abs _ _ _) = True
+isValue (Pair _ _)  = True
 isValue (Succ t)    = isValue t
 isValue _           = False
 
@@ -59,9 +63,12 @@ showTerm _   Fls           = "False"
 showTerm _   Zero          = "0"
 showTerm _   EUnit         = "()"
 showTerm _   Error         = "Error"
+showTerm ctx (Pair t1 t2)  = "(" ++ showTerm ctx t1 ++ "," ++ showTerm ctx t2 ++ ")"
 showTerm ctx (Let s t1 t2) = "let " ++ s ++ " = " ++ showTerm ctx t1 ++ " in " ++ showTerm ctx' t2 where ctx' = pushBinding ctx (s, Type $ TName "Dummy")
 showTerm ctx (Fix t)       = "fix (" ++ showTerm ctx t ++ ")"
 showTerm ctx (If t1 t2 t3) = "if " ++ s t1 ++ " then " ++ s t2 ++ " else " ++ s t3 where s a = showTerm ctx a
+showTerm ctx (Fst t)       = "fst (" ++ showTerm ctx t ++ ")"
+showTerm ctx (Snd t)       = "snd (" ++ showTerm ctx t ++ ")"
 showTerm ctx (IsZero t)    = "iszero (" ++ showTerm ctx t ++ ")"
 showTerm ctx (Succ t)
   | isValue t = show $ toInt (Succ t)

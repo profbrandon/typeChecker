@@ -24,6 +24,7 @@ data TExpr = Arrow TExpr  TExpr
            | Bool
            | Nat
            | Unit
+           | TPair TExpr  TExpr
            deriving Eq
 
 type TContext = Function String String
@@ -50,6 +51,7 @@ showTExpr Nat         = "Nat"
 showTExpr Unit        = "()"
 showTExpr (TVar n)    = n
 showTExpr (TName n)   = n
+showTExpr (TPair a b) = "(" ++ show a ++ "," ++ show b ++ ")"
 showTExpr (Arrow a b) =
   case a of
     Arrow _ _ -> "(" ++ show a ++ ") -> " ++ show b

@@ -58,6 +58,7 @@ lex (c:cs)
       '('  -> a1 LParen
       ')'  -> a1 RParen
       '='  -> a1 Equ
+      ','  -> a1 Comma
       '-'  ->
         case cs of
           '>':cs' -> ap Arr cs'
@@ -72,6 +73,8 @@ lex (c:cs)
           "if"     -> a2 IfT
           "then"   -> a2 Then
           "else"   -> a2 Else
+          "fst"    -> a2 FstT
+          "snd"    -> a2 SndT
           "iszero" -> a2 IsZeroT
           "succ"   -> a2 SuccT
           "pred"   -> a2 PredT
