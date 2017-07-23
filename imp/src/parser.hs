@@ -10,18 +10,33 @@ import Language.Tokens
 import TypeChecker.Types
 import TypeChecker.Utils
 
-data Error = MissingParen
-           | MissingExprStart [Token]
-           | MissingPeriod
-           | MissingColon
-           | MissingElse
-           | MissingThen
-           | MissingId
+data Error = MissingParen     Token
+           | MissingExprStart Token
+           | MissingPeriod    Token
+           | MissingColon     Token
+           | MissingElse      Token
+           | MissingThen      Token
+           | MissingId        Token
            | MissingType
            | MissingTExpr
-           | MissingIn
-           | UnboundVariable
-           deriving Show
+           | MissingIn        Token
+           | UnboundVariable  String
+
+instance Show Error where
+  show = showError 
+
+showError :: Error -> String
+showError (MissingParen t)     = "parenthesis expected, received " ++ show t
+showError (MissingExprStart t) = "start to expression expected, recieved " ++ show t
+showError (MissingPeriod t)    = "body separator (.) expected, recieved " ++ show t
+showError (MissingColon t)     = "type operator (:) expected, recieved " ++ show t
+showError (MissingElse t)      = "expected \'else\' keyword, recieved " ++ show t
+showError (MissingThen t)      = "expected \'then\' keyword, recieved " ++ show t
+showError (MissingId t)        = "identifier expected, recieved " ++ show t
+showError MissingType          = "type expected, recieved no further input"
+showError MissingTExpr         = "type expression expected, recieved no further input"
+showError (MissingIn t)        = "expected \'in\' keyword, recieved " ++ show t
+showError (UnboundVariable n)  = "unbound variable \'" ++ n ++ "\'"
 
 parse :: [Token] -> Either Error Term
 parse s = do
@@ -42,6 +57,7 @@ app ctx t1 s =
     Else:_   -> return (s, t1, ctx)
     In:_     -> return (s, t1, ctx)
     Comma:_  -> return (s, t1, ctx)
+    EOT:_    -> return (s, t1, ctx)
     _        -> do
       (back, t2, _) <- expr1 ctx s
       case back of
@@ -73,9 +89,9 @@ expr1 ctx s =
           (b4, t2, _) <- expr ctx b3
           case b4 of
             RParen:b5 -> return (b5, Pair t t2, ctx)
-            _         -> Left MissingParen
-        _         -> Left MissingParen
-    _          -> Left $ MissingExprStart s
+            q:_       -> Left $ MissingParen q
+        q:_       -> Left $ MissingParen q
+    q:_        -> Left $ MissingExprStart q
   where fun b n = do (b2, t, ctx') <- expr ctx b; return (b2, n t, ctx')
 
 lambda :: VContext -> [Token] -> Either Error ([Token], Term, VContext)
@@ -88,8 +104,8 @@ lambda ctx (Lambda:(Id name):back) =
         Period:b3 -> do
           (b4, t, ctx'') <- expr ctx' b3
           return (b4, Abs name ty t, ctx'')
-        _ -> Left MissingPeriod
-    _ -> Left MissingColon
+        q:_       -> Left $ MissingPeriod q
+    q:_      -> Left $ MissingColon q
 
 llet :: VContext -> [Token] -> Either Error ([Token], Term, VContext)
 llet ctx (LetT:(Id name):Equ:back) = do
@@ -99,7 +115,7 @@ llet ctx (LetT:(Id name):Equ:back) = do
     In:b2 -> do
       (b3, e2, ctx'') <- expr ctx' b2
       return $ (b3, Let name e1 e2, ctx'')
-    _ -> Left MissingIn
+    q:_   -> Left $ MissingIn q
 
 cond :: VContext -> [Token] -> Either Error ([Token], Term, VContext)
 cond ctx (IfT:back) = do
@@ -111,16 +127,16 @@ cond ctx (IfT:back) = do
         Else:b4 -> do
           (b5, t3, c3) <- expr c2 b4
           return (b5, If t1 t2 t3, c3)
-        _ -> Left MissingElse
-    _ -> Left MissingThen 
+        q:_     -> Left $ MissingElse q
+    q:_     -> Left $ MissingThen q
 
 variable :: VContext -> [Token] -> Either Error ([Token], Term, VContext)
 variable ctx ((Id name):xs) = 
   let ma = findBind ctx name
   in case ma of
-    Nothing        -> Left UnboundVariable
+    Nothing        -> Left $ UnboundVariable name
     Just (i, s, _) -> return (xs, Var i, ctx)
-variable _ _ = Left MissingId
+variable _ (q:_) = Left $ MissingId q
 
 findBind :: VContext -> String -> Maybe (Int, String, Type)
 findBind = findBind0 0
@@ -150,13 +166,13 @@ ttype ctx (LParen:ts) = do
     Comma:_     -> do
       (ts'', te, _) <- texpr ctx (LParen:ts)
       return (ts'', Type te, ctx)
-    _           -> Left MissingParen
+    q:_         -> Left $ MissingParen q
 ttype ctx ts = do
   (ts', te, ctx') <- texpr ctx ts
   return (ts', Type te, ctx')
 
 texpr :: TContext -> [Token] -> Either Error ([Token], TExpr, TContext)
-texpr _   []                 = Left MissingTExpr
+texpr _   []                 = Left $ MissingTExpr
 texpr ctx (LParen:RParen:b)  = arrow ctx Unit b
 texpr ctx ((Id "Bool"):back) = arrow ctx Bool back
 texpr ctx ((Id "Nat"):back)  = arrow ctx Nat back
@@ -171,12 +187,12 @@ texpr ctx (LParen:b0)        = do
       (b3, ty2, _) <- texpr ctx b2
       case b3 of
         RParen:b4 -> arrow ctx (TPair ty1 ty2) b4
-        _         -> Left MissingParen
+        q:_       -> Left $ MissingParen q
     _        -> do
       (b2, ty2, ctx'') <- arrow ctx' ty1 b1
       case b2 of
         RParen:b3 -> arrow ctx'' ty2 b2
-        _         -> Left MissingParen
+        q:_       -> Left $ MissingParen q
 
 arrow :: TContext -> TExpr -> [Token] -> Either Error ([Token], TExpr, TContext)
 arrow ctx t [] = return ([], t, ctx)

@@ -200,6 +200,10 @@ substituteAll0 getSub t =
       let (qsa, a') = substituteAll0 (getSub) a
           (qsb, b') = substituteAll0 (getSub) b
       in (qsa ++ qsb, Arrow a' b')
+    TPair a b ->
+      let (qsa, a') = substituteAll0 (getSub) a
+          (qsb, b') = substituteAll0 (getSub) b
+      in (qsa ++ qsb, TPair a' b')
     TVar v    -> 
       case getSub v of
         Nothing -> ([v], TVar v)
@@ -238,7 +242,7 @@ typeof0 tctx vctx (App t1 t2)    = do
     (_, Arrow _ _) ->
       let (ty11, ty12)  = splitArrow ty1
           ty2'          = renameUnique tctx ty2 ty1
-          (subs, isspe) = special0 ty11 ty2'
+          (subs, isspe) = special0 tctx ty11 ty2'
       in if isspe
         then return $ substituteAll subs ty12
         else Left $ ParamTypeMismatch ty11 ty2
@@ -311,16 +315,26 @@ typeof0 _    _    Error          = return $ Bottom
 -- Specialization relation
 -- t1 is a specialization of t2
 special :: Type -> Type -> Bool
-special t2 t1 = b where (_, b) = special0 t2 t1
+special t2 t1 = b where (_, b) = special0 nilmap t2 t1
 
-special0 :: Type -> Type -> ([(String, Type)], Bool)
-special0 t2 t1 =
+special0 :: TContext -> Type -> Type -> ([(String, Type)], Bool)
+special0 tctx t2 t1 =
   let t1' = condense t1
       t2' = condense t2
   in case (isArrow t1', isArrow t2') of
     (False, False) -> 
       case t2' of
-        Forall _ (Type (TVar n)) -> ([(n, t1')], True)
+        Forall _ (Type (TVar n1)) ->
+          case t1' of
+            Forall _ (Type (TVar n2)) ->
+              if n1 == n2
+                then ([(n1, t1')], True)
+                else let mn1 = tctx n1
+                         mn2 = tctx n2
+                  in if mn1 == Nothing && mn2 == Nothing
+                    then ([(n1, t1')], True)
+                    else ([], False)
+            _ -> ([(n1, t1')], True)
         _                        -> ([], t1' == t2')
     (False, True)  -> ([], False)
     (True, False)  -> 
@@ -330,8 +344,8 @@ special0 t2 t1 =
     (True, True)   ->
       let (t11, t12) = splitArrow t1'
           (t21, t22) = splitArrow t2'
-          (subs, b)  = special0 t21 t11
-          back       = if b then let (subs', b') = special0 (substituteAll subs t22) t12
+          (subs, b)  = special0 tctx t21 t11
+          back       = if b then let (subs', b') = special0 tctx (substituteAll subs t22) t12
                                  in (subs ++ subs', b')
                             else ([], False)
       in case t2' of

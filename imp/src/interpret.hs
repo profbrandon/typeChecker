@@ -29,13 +29,17 @@ main = runInputT defaultSettings loop
         Just "quit" -> return ()
         Just txt    ->
           case txt of
-            ":exit" -> return ()
+            ":exit"         -> return ()
+            ':':'t':'y':'p':'e':'o':'f':txt' ->
+              case computeVal txt' of
+                Left e      -> do outputStrLn e; loop
+                Right (t,v) -> do outputStrLn $ show t; loop
             _       ->
               case computeVal txt of
-                Left e  -> do outputStrLn e; loop
-                Right v -> do outputStrLn $ show v; loop
+                Left e      -> do outputStrLn e; loop
+                Right (t,v) -> do outputStrLn $ show v; loop
 
-computeVal :: String -> Either Main.Error Language.AbstractSyntax.Term
+computeVal :: String -> Either Main.Error (TypeChecker.Type, Language.AbstractSyntax.Term)
 computeVal txt =
   case Lexer.lex txt of
     Left e     -> Left $ "Lexical Error:  " ++ show e
@@ -45,4 +49,4 @@ computeVal txt =
         Right term ->
           case TypeChecker.typeof term of
             Left e   -> Left $ "Type Error:  " ++ show e
-            Right ty -> return $ eval term
+            Right ty -> return $ (ty, eval term)

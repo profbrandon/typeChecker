@@ -42,7 +42,7 @@ convertNat 0 = [ZeroT]
 convertNat i = SuccT:LParen:ts ++ [RParen] where ts = convertNat $ i - 1
 
 lex :: String -> Either Error [Token]
-lex [] = return []
+lex [] = return [EOT]
 lex (c:cs)
   | isSpace c = lex cs
   | isDigit c = do
