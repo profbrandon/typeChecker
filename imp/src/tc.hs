@@ -37,9 +37,12 @@ module TypeChecker
   , pushBinding
   , typeof
   , special
-  , (<!)
+  , (!>)
   )
 where
+
+import Data.List (union, delete)
+import Data.Maybe (isJust, isNothing)
 
 import TypeChecker.Utils
 import TypeChecker.Types
@@ -76,19 +79,24 @@ showError (UnboundVar)              = "unbound variable"
 
 -- Operations on Universal Quantifiers
 
+free :: Type -> [String]
+free (Type t)           = free0 t
+free (Forall n t)       = delete n $ free t
+
+free0 :: TExpr -> [String]
+free0 (TVar n)    = [n]
+free0 (Arrow a b) = free0 a `union` free0 b
+free0 (TPair a b) = free0 a `union` free0 b
+free0 _           = []
+
 -- Condenses Quantifiers
    -- e.g.,  forall a. forall a. t ==> forall a. t
 condense :: Type -> Type
-condense t = condense2 (\a -> Nothing) t
-
-condense2 :: TContext -> Type -> Type
-condense2 ctx (Forall n ty) =
-  case ctx n of
-    Nothing -> if hasTypeVar n ty then Forall n ty' else ty'
-    _       -> ty'
-    where ctx' = addBinding n n ctx
-          ty'  = condense2 ctx' ty
-condense2 ctx ty = ty
+condense (Type t)     = Type t
+condense (Forall n t)
+  | n `elem` fv = Forall n t'
+  | otherwise   = t'
+  where fv = free t; t' = condense t
 
 -- Separates quantifiers from their type expressions
    -- e.g., forall a. a -> a ==> ("a", a -> a)
@@ -116,6 +124,12 @@ isArrow :: Type -> Bool
 isArrow (Forall n t)       = isArrow t
 isArrow (Type (Arrow _ _)) = True
 isArrow _                  = False
+
+isPrimitive :: TExpr -> Bool
+isPrimitive (Arrow _ _) = False
+isPrimitive (TPair _ _) = False
+isPrimitive (TVar _)    = False
+isPrimitive _           = True
 
 -- Inverse of separate (i.e., quantify . separate == id)
 quantify :: ([String], TExpr) -> Type
@@ -214,14 +228,26 @@ quantifier :: Type -> Bool
 quantifier (Forall _ _) = True
 quantifier (Type _)     = False
 
+tctxConflict :: TContext -> [(String, Type)] -> Bool
+tctxConflict tctx []     = False
+tctxConflict tctx (x:xs) =
+  case x of
+   (n, Type (TVar m)) ->
+     if n == m
+       then back
+       else not (prop n && prop m) || back
+   _                  -> back
+  where prop = isNothing . tctx
+        back = tctxConflict tctx xs
+
 
 
 -- Typing
 
-infix 4 <!
+infix 4 !>
 
-(<!) :: Type -> Type -> Bool
-(<!) = special
+(!>) :: Type -> Type -> Bool
+(!>) = special
 
 --(<:) :: Type -> Type -> Bool
 --(<:) = subtype
@@ -240,12 +266,14 @@ typeof0 tctx vctx (App t1 t2)    = do
   ty2 <- typeof0 tctx vctx t2
   case separate ty1 of
     (_, Arrow _ _) ->
-      let (ty11, ty12)  = splitArrow ty1
-          ty2'          = renameUnique tctx ty2 ty1
-          (subs, isspe) = special0 tctx ty11 ty2'
-      in if isspe
-        then return $ substituteAll subs ty12
-        else Left $ ParamTypeMismatch ty11 ty2
+      let (ty11, ty12) = splitArrow ty1
+          ty2'         = renameUnique tctx ty2 ty1
+          fs           = findSubs [] ty11 ty2'
+      in case fs of
+        Nothing   -> Left $ ParamTypeMismatch ty11 ty2
+        Just subs -> if tctxConflict tctx subs
+                       then Left $ ParamTypeMismatch ty11 ty2
+                       else return $ substituteAll subs ty12
     _            ->
       if ty1 == Bottom
         then return Bottom
@@ -275,10 +303,10 @@ typeof0 tctx vctx (If t1 t2 t3)  = do
   ty2 <- typeof0 tctx vctx t2
   ty3 <- typeof0 tctx vctx t3
   if ty1 == Type Bool
-    then if ty2 <! ty3
-      then return ty2
-      else if ty3 <! ty2
-        then return ty3
+    then if ty2 !> ty3
+      then return ty3
+      else if ty3 !> ty2
+        then return ty2
         else Left $ IfBranchMismatch ty2 ty3
     else Left $ ExpectedBoolGuard ty1
 typeof0 tctx vctx (Fst t)        = do
@@ -315,47 +343,30 @@ typeof0 _    _    Error          = return $ Bottom
 -- Specialization relation
 -- t1 is a specialization of t2
 special :: Type -> Type -> Bool
-special t2 t1 = b where (_, b) = special0 nilmap t2 t1
+special t1 t2 =
+  case findSubs [] t2 t1 of
+    Nothing -> False
+    _       -> True
 
-special0 :: TContext -> Type -> Type -> ([(String, Type)], Bool)
-special0 tctx t2 t1 =
-  let t1' = condense t1
-      t2' = condense t2
-  in case (isArrow t1', isArrow t2') of
-    (False, False) -> 
-      case t2' of
-        Forall _ (Type (TVar n1)) ->
-          case t1' of
-            Forall _ (Type (TVar n2)) ->
-              if n1 == n2
-                then ([(n1, t1')], True)
-                else let mn1 = tctx n1
-                         mn2 = tctx n2
-                  in if mn1 == Nothing && mn2 == Nothing
-                    then ([(n1, t1')], True)
-                    else ([], False)
-            _ -> ([(n1, t1')], True)
-        _                        -> ([], t1' == t2')
-    (False, True)  -> ([], False)
-    (True, False)  -> 
-      case t2' of
-        Forall _ (Type (TVar n)) -> ([(n, t1')], True)
-        _                        -> ([], False)
-    (True, True)   ->
-      let (t11, t12) = splitArrow t1'
-          (t21, t22) = splitArrow t2'
-          (subs, b)  = special0 tctx t21 t11
-          back       = if b then let (subs', b') = special0 tctx (substituteAll subs t22) t12
-                                 in (subs ++ subs', b')
-                            else ([], False)
-      in case t2' of
-        Forall _ (Forall _ (Type (Arrow (TVar n) (TVar m)))) -> ([(n, t11), (m, t12)], True)
-        Forall _ (Type (Arrow _ _)) ->
-          case t1' of
-            Forall _ (Forall _ _)       -> ([], False)
-            Forall _ (Type (Arrow _ _)) -> back
-            _ -> back 
-        _ -> back
+findSubs :: [(String,Type)] -> Type -> Type -> Maybe [(String, Type)]
+findSubs s  (Forall v1 tt1) (Forall v2 tt2) = findSubs s tt1 tt2
+findSubs s  (Forall v tt) t = findSubs s tt t
+findSubs s0 (Type (Arrow t11 t12)) (Type (Arrow t21 t22)) = do
+  s1 <- findSubs s0 (Type t11) (Type t21)
+  s2 <- findSubs s1 (Type t12) (Type t22)
+  return $ s2
+findSubs s0 (Type (TPair t11 t12)) (Type (TPair t21 t22)) = do
+  s1 <- findSubs s0 (Type t11) (Type t21)
+  s2 <- findSubs s1 (Type t12) (Type t22)
+  return $ s2
+findSubs s (Type (TVar n)) t1
+  | (n, t1) `elem` s      = return s
+  | isJust $ n `lookup` s = Nothing
+  | otherwise             = return $ (n, t1):s
+findSubs s (Type p1) (Type p2)
+  | p1 == p2  = return []
+  | otherwise = Nothing
+findSubs _ _ _ = Nothing
 
 -- Subtype Relation
 -- subtype :: Type -> Type -> Bool
