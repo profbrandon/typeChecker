@@ -1,4 +1,4 @@
-** Note, all expressions are considered condensed
+** Note, this file assumes the context of uq.txt
 
 ***********************************************************************************************************************
 The identity morphism of specialization exists for all types (forall T. T !> T)
@@ -9,7 +9,7 @@ Proof:  (by structural induction)
 	        p = p
 	====================== (FS-Primitive Equivalence)
 	findSubs({}, p, p) = s
-	====================== (Specialization =>)
+	====================== (SP-Definition =>)
 	       T !> T
 
 
@@ -18,7 +18,7 @@ Proof:  (by structural induction)
 	   [v :-> v] is not a member of s
 	===================================== (FS-Add Substitution)
 	findSubs({}, v, v) = {} U {[v :-> v]}
-	===================================== (Specialization =>)
+	===================================== (SP-Definition =>)
 	                T !> T
 
 
@@ -31,7 +31,7 @@ Proof:  (by structural induction)
 	findSubs({}, t1, t1) = s1     findSubs(s1, t2, t2) = s2
 	======================================================= (FS-Arrow Specialization)
 	         findSubs({}, t1 -> t2, t1 -> t2) = s2
-	         ===================================== (Specialization =>)
+	         ===================================== (SP-Definition =>)
 	                         T !> T
 
 
@@ -40,9 +40,9 @@ Proof:  (by structural induction)
 
 	         ========================= (Assumption)
 	         findSubs({}, T', T') = s1
-	============================================= (FS-Forall Specialization 2)
+	============================================= (FS-Dual Forall Generalization)
 	findSubs({}, forall v. T', forall v. T') = s1
-	============================================= (Specialization =>)
+	============================================= (SP-Definition =>)
 	                  T !> T
 	
 Thus, by structural induction, specilaization implies the existance of the identity morphism
@@ -60,9 +60,9 @@ Proof:  (by case analysis)
 	     [v :-> p] is not a member of {}
 	  ===================================== (FS-Add Substitution)
 	  findSubs({}, v, p) = {} U {[v :-> p]}
-	========================================== (FS-Forall Specialization 1)
+	========================================== (FS-Single Forall Generalization)
 	findSubs({}, forall v. v, p) = {[v :-> p]}
-	========================================== (Specialization =>)
+	========================================== (SP-Definition =>)
 	                 T1 !> T2
 
 
@@ -71,9 +71,9 @@ Proof:  (by case analysis)
 	       [v :-> v'] is not a member of {}
 	   ======================================= (FS-Add Substitution)
 	   findSubs({}, v, v') = {} U {[v :-> v']}
-	============================================ (FS-Forall Specialization 1)
+	============================================ (FS-Single Forall Generalization)
 	findSubs({}, forall v. v, v') = {[v :-> v']}
-	============================================ (Specialization =>)
+	============================================ (SP-Definition =>)
 	                  T1 !> T2
 
 
@@ -82,20 +82,20 @@ Proof:  (by case analysis)
 	          [v :-> t1 -> t2] is not a member of {}
 	   =================================================== (FS-Add Substitution)
 	   findSubs({}, v, t1 -> t2) = {} U {[v :-> t1 -> t2]}
-	======================================================== (FS-Forall Specialization 1)
+	======================================================== (FS-Single Forall Generalization)
 	findSubs({}, forall v. v, t1 -> t2) = {[v :-> t1 -> t2]}
-	======================================================== (Specialization =>)
+	======================================================== (SP-Definition =>)
 	                         T1 !> T2
 
 
 	Case:  T1 = forall v'. T1'
 	
 	            [v :-> T1'] is not a member of {}
-	        ========================================= (FS-Add Specialization)
+	        ========================================= (FS-Add Substitution)
 	        findSubs({}, v, T1') = {} U {[v :-> T1']}
-	========================================================= (FS-Forall Specialization 2)
+	========================================================= (FS-Dual Forall Generalization)
 	findSubs({}, forall v. v, forall v'. T1') = {[v :-> T1']}
-	========================================================= (Specialization =>)
+	========================================================= (SP-Definition =>)
 	                         T1 !> T2
 
 Thus, by case analysis, specialization implies the existance of the terminal type.
@@ -113,15 +113,15 @@ Proof:  (by structural induction)
 	Case:  T11 = t1, T12 = t2
 
 	    [v1 :-> t1] is not a member of {}             [v2 :-> t2] is not a member of {[v1 :-> t2]}
-	=========================================     ==================================================== (FS-Add Specialization)
+	=========================================     ==================================================== (FS-Add Substitution)
 	findSubs({}, v1, t1) = {} U {[v1 :-> t1]}     findSubs({}, v2, t2) = {[v1 :-> t1]} U {[v2 :-> t2]}
 	================================================================================================== (FS-Arrow Specialization)
 	                  findSubs({}, v1 -> v2, t1 -> t2) = {[v1 :-> t1], [v2 :-> t2]}
-	             ======================================================================== (FS-Forall Specialization 1)
+	             ======================================================================== (FS-Single Forall Generalization)
 	             findSubs({}, forall v2. v1 -> v2, t1 -> t2) = {[v1 :-> t1], [v2 :-> t2]}
-	       =================================================================================== (FS-Forall Specialization 1)
+	       =================================================================================== (FS-Single Forall Generalization)
 	       findSubs({}, forall v1. forall v2. v1 -> v2, t1 -> t2) = {[v1 :-> t1], [v2 :-> t2]}
-	       =================================================================================== (Specialization =>)
+	       =================================================================================== (SP-Definition =>)
 	                                             T1 !> T2	
 
 
@@ -130,11 +130,11 @@ Proof:  (by structural induction)
 
 	           ================================================= (Assumption)
 	           findSubs({}, forall v2. v1 -> v2, t1 -> T12') = s
-	 ======================================================================== (FS-Forall Specialization 2)
+	 ======================================================================== (FS-Dual Forall Generalization)
 	 findSubs({}, forall v1. forall v2. v1 -> v2, forall v2'. t1 -> T12') = s
-	========================================================================== (Arrow =>)
+	========================================================================== (UQ-Arrow =>)
 	findSubs({}, forall v1. forall v2. v1 -> v2, t1 -> (forall v2'. T12')) = s
-	========================================================================== (Specialization =>)
+	========================================================================== (SP-Definition =>)
 	                                  T1 !> T2
 
 	
@@ -143,30 +143,30 @@ Proof:  (by structural induction)
 
 	            ================================================= (Assumption)
 	            findSubs({}, forall v2. v1 -> v2, T11' -> t2) = s
-	 ======================================================================== (FS-Forall Specialization 2)
+	 ======================================================================== (FS-Dual Forall Generalization)
 	 findSubs({}, forall v1. forall v2. v1 -> v2, forall v1'. T11' -> t2) = s
-	========================================================================== (Arrow =>)
+	========================================================================== (UQ-Arrow =>)
 	findSubs({}, forall v1. forall v2. v1 -> v2, (forall v1'. T11') -> t2) = s
-	========================================================================== (Specialization =>)
+	========================================================================== (SP-Definition =>)
 	                                  T1 !> T2
 
 
 	Case:  T11 = forall v1'. T11', T12 = forall v2'. T12'
 
 	     [v1 :-> T11'] is not a member of {}                      [v2 :-> T12'] is not a member of {[v1 :-> T11']}
-	=============================================     ======================================================================= (FS-Add Specialization)
+	=============================================     ======================================================================= (FS-Add on)
 	findSubs({}, v1, T11') = {} U {[v1 :-> T11']}     findSubs({[v1 :-> T11']}, v2, T12') = {[v1 :-> T11']} U {[v2 :-> T12']}
 	========================================================================================================================= (FS-Arrow Specialization)
 	                          findSubs({}, v1 -> v2, T11' -> T12') = {[v1 :-> T11'], [v2 :-> T12']}
 	               ============================================================================================ (FS-Forall Specialization 2)
 	               findSubs({}, forall v2. v1 -> v2, forall v2'. T11' -> T12') = {[v1 :-> T11'], [v2 :-> T12']}
-	    =================================================================================================================== (FS-Forall Specialization 2)
+	    =================================================================================================================== (FS-Forall Generalization 2)
 	    findSubs({}, forall v1. forall v2. v1 -> v2, forall v1'. forall v2'. T11' -> T12') = {[v1 :-> T11'], [v2 :-> T12']}
-	   ===================================================================================================================== (Arrow =>)
+	   ===================================================================================================================== (UQ-Arrow =>)
            findSubs({}, forall v1. forall v2. v1 -> v2, forall v1'. T11' -> (forall v2'. T12')) = {[v1 :-> T11'], [v2 :-> T12']}
-	   ====================================================================================================================== (Arrow =>)
+	   ====================================================================================================================== (UQ-Arrow =>)
 	   findSubs({}, forall v1. forall v2. v1 -> v2, (forall v1'. T11') -> (forall v2'. T12')) = {[v1 :-> T11', [v2 :-> T12']}
-	   ====================================================================================================================== (Specialization =>)
+	   ====================================================================================================================== (SP-Definition =>)
 	                                                        T1 !> T2
 
 Thus, by structural induction, specialization implies the existance of the terminal arrow type for all arrow types.

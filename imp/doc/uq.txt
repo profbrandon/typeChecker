@@ -37,15 +37,23 @@ t	= t -> t
 
 Free Variables:
 
+(FV-Primitive:)
+
 	==========
 	FV(p) = {}
 
+(FV-Variable:)
+
 	===========
 	FV(v) = {v}
-     
+
+(FV-Arrow:)
+
 	      t = t1 -> t2
 	=======================
 	FV(t) = FV(t1) U FV(t2)
+
+(FV-Universal:)
 
 	   T = forall v. T'
 	======================
@@ -55,65 +63,65 @@ Free Variables:
 
 Specialization Substitution:
 
-(FS-Primitive Equivalence)
+(FS-Primitive Equivalence:)
 
 	         p1 = p2
         ========================
 	findSubs(s, p1, p2) = {}
 
-(FS-Primitive Inequivalence)
+(FS-Primitive Inequivalence:)
 
 	           p1 /= p2
 	=============================
 	findSubs(s, p1, p2) = failure
 
-(FS-Add Substitution)
+(FS-Add Substitution:)
 
 	   [v :-> T1] is not a member of s
 	=====================================
 	findSubs(s, v, T1) = s U {[v :-> T1]}
 
-(FS-Substitution Mismatch)
+(FS-Substitution Mismatch:)
 
 	[v :-> T2] is a member of s     T1 /= T2
         ========================================
 	     findSubs(s, v, T1) = failure
 
-(FS-Matching Substitution)
+(FS-Matching Substitution:)
 
 	[v :-> T2] is a member of s     T1 = T2
         =======================================
 	        findSubs(s, v, T1) = s
 
-(FS-Arrow Specialization)
+(FS-Arrow Specialization:)
 
 	findSubs(s0, t11, t21) = s1     findSubs(s1, t12, t22) = s2
 	===========================================================
 	         findSubs(s0, t11 -> t12, t21 -> t22) = s2
 
-(FS-Arrow Mismatch 1)
+(FS-Arrow Mismatch 1:)
 
 	==================================
 	findSubs(s, t1 -> t2, v) = failure
 
-(FS-Arrow Mismatch 2)
+(FS-Arrow Mismatch 2:)
 
 	==================================
 	findSubs(s, t1 -> t2, p) = failure
 
-(FS-Forall Specialization 1)
+(FS-Single Forall Generalization:)
 
 	     findSubs(s, T, t) = s' 
 	================================
 	findSubs(s, forall v. T, t) = s'
 
-(FS-Forall Specialization 2)
+(FS-Dual Forall Generalization:)
 
 	           findSubs(s, T1, T2) = s'
 	==============================================
 	findSubs(s, forall v1. T1, forall v2. T2) = s'
 
-(FS-Forall Mismatch)
+(FS-Forall Mismatch:)
 	
 	=====================================
 	findSubs(s, t, forall v. T) = failure
@@ -122,7 +130,7 @@ Specialization Substitution:
 
 Properties:
 
-(Condensability:)
+(UQ-Condensability:)
 
 	T = forall v. T'     v is not a member of FV (T')
 	=================================================
@@ -130,11 +138,11 @@ Properties:
 
 ** Note: all types hereafter are considered condensed by the above rules
 
-(Commutativity:)
+(UQ-Commutativity:)
 
 	T = forall v1. forall v2. T'     <=>     T = forall v2. forall v1. T'
 
-(Arrow:)
+(UQ-Arrow:)
 
 	T = forall v. (t1 -> t2)     <=>     T = (forall v. t1) -> (forall v. t2)
 	
@@ -144,11 +152,11 @@ Specialization:
 
 T1 !> T2:  "T1 is a specialization of T2"
 
-(Specialization:)
+(SP-Definition:)
 
 	findSubs({}, T2, T1) = s     <=>     T1 !> T2
 
-(Composability:)
+(SP-Composability:)
 
 	T1 !> T2     T2 !> T3
 	=====================
