@@ -120,17 +120,6 @@ splitArrow t =
             b' = quantify (ns, b)
     where (ns, te) = separate t
 
-isArrow :: Type -> Bool
-isArrow (Forall n t)       = isArrow t
-isArrow (Type (Arrow _ _)) = True
-isArrow _                  = False
-
-isPrimitive :: TExpr -> Bool
-isPrimitive (Arrow _ _) = False
-isPrimitive (TPair _ _) = False
-isPrimitive (TVar _)    = False
-isPrimitive _           = True
-
 -- Inverse of separate (i.e., quantify . separate == id)
 quantify :: ([String], TExpr) -> Type
 quantify = condense . quantify2
@@ -140,10 +129,8 @@ quantify2 ([], te)     = Type te
 quantify2 ((n:ns), te) = Forall n ty where ty = quantify2 (ns, te)
 
 hasTypeVar :: String -> Type -> Bool
-hasTypeVar s (Forall n ty)      = hasTypeVar s ty
-hasTypeVar s (Type (Arrow a b)) = hasTypeVar s (Type a) || hasTypeVar s (Type b)
-hasTypeVar s (Type (TVar k))    = s == k
-hasTypeVar s _                  = False
+hasTypeVar s (Forall n ty) = hasTypeVar s ty
+hasTypeVar s (Type t)      = s `elem` free0 t
 
 substitute :: String -> Type -> Type -> Type
 substitute v (Type (TVar v')) t =
@@ -192,11 +179,8 @@ uniqueNames (x:xs) t =
 renameUnique :: TContext -> Type -> Type -> Type
 renameUnique ctx t1 observer =
   let (names, _) = separate $ condense t1
-      names'     = filter (\n -> case ctx n of
-                                   Nothing -> True
-                                   _ -> False) names
-      names''    = uniqueNames names' observer
-      mapping    = zip names' names''
+      names'     = filter (\n -> isNothing $ ctx n) names
+      mapping    = zip names' $ uniqueNames names' observer
   in renameAll mapping t1
 
 substituteAll :: [(String, Type)] -> Type -> Type
@@ -223,10 +207,6 @@ substituteAll0 getSub t =
         Nothing -> ([v], TVar v)
         Just ty -> separate ty
     t'        -> ([], t')
-
-quantifier :: Type -> Bool
-quantifier (Forall _ _) = True
-quantifier (Type _)     = False
 
 tctxConflict :: TContext -> [(String, Type)] -> Bool
 tctxConflict tctx []     = False
@@ -273,7 +253,7 @@ typeof0 tctx vctx (App t1 t2)    = do
         Nothing   -> Left $ ParamTypeMismatch ty11 ty2
         Just subs -> if tctxConflict tctx subs
                        then Left $ ParamTypeMismatch ty11 ty2
-                       else return $ substituteAll subs ty12
+                       else return $ quantify (free0 ty12', ty12') where (_, ty12') = separate $ substituteAll subs ty12
     _            ->
       if ty1 == Bottom
         then return Bottom
@@ -343,10 +323,7 @@ typeof0 _    _    Error          = return $ Bottom
 -- Specialization relation
 -- t1 is a specialization of t2
 special :: Type -> Type -> Bool
-special t1 t2 =
-  case findSubs [] t2 t1 of
-    Nothing -> False
-    _       -> True
+special t1 t2 = isJust $ findSubs [] t2 t1
 
 findSubs :: [(String,Type)] -> Type -> Type -> Maybe [(String, Type)]
 findSubs s  (Forall v1 tt1) (Forall v2 tt2) = findSubs s tt1 tt2
