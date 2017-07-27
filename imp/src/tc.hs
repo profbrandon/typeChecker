@@ -36,6 +36,7 @@ module TypeChecker
   , nilmap
   , pushBinding
   , typeof
+  , typeof0
   , special
   , (!>)
   )
