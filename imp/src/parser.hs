@@ -5,22 +5,26 @@ module Parser
   )
 where
 
+import Data.Char (isLower)
+
 import Language.AbstractSyntax
 import Language.Tokens
 import TypeChecker.Types
 import TypeChecker.Utils
+import TypeChecker.UniversalQuantifiers.Utils (quantify')
 
-data Error = MissingParen     Token
-           | MissingExprStart Token
-           | MissingPeriod    Token
-           | MissingColon     Token
-           | MissingElse      Token
-           | MissingThen      Token
-           | MissingId        Token
+data Error = MissingParen       Token
+           | MissingExprStart   Token
+           | MissingPeriod      Token
+           | MissingColon       Token
+           | MissingElse        Token
+           | MissingThen        Token
+           | MissingId          Token
            | MissingType
            | MissingTExpr
-           | MissingIn        Token
-           | UnboundVariable  String
+           | MissingIn          Token
+           | UnboundVariable    String
+           | IncorrectUniversal String
 
 instance Show Error where
   show = showError 
@@ -37,6 +41,7 @@ showError MissingType          = "type expected, recieved no further input"
 showError MissingTExpr         = "type expression expected, recieved no further input"
 showError (MissingIn t)        = "expected \'in\' keyword, recieved " ++ show t
 showError (UnboundVariable n)  = "unbound variable \'" ++ n ++ "\'"
+showError (IncorrectUniversal n) = "incorrect universal quantifier. \'" ++ n ++ "\' must be all lowercase"
 
 parse :: [Token] -> Either Error Term
 parse s = do
@@ -98,7 +103,7 @@ lambda :: VContext -> [Token] -> Either Error ([Token], Term, VContext)
 lambda ctx (Lambda:(Id name):back) =
   case back of
     Colon:b1 -> do
-      (b2, ty, _) <- ttype nilmap b1
+      (b2, ty) <- ttype b1
       let ctx' = pushBinding ctx (name, ty)
       case b2 of
         Period:b3 -> do
@@ -151,54 +156,56 @@ findBind0 i ctx name =
         else findBind0 (i + 1) ctx name
   where ma = ctx i 
 
-ttype :: TContext -> [Token] -> Either Error ([Token], Type, TContext)
-ttype _ [] = Left MissingType
-ttype ctx (ForallT:(Id name):Period:ts) = do
-  (ts', ty, ctx') <- ttype (addBinding name name ctx) ts
-  return (ts', Forall name ty, ctx')
-ttype ctx (LParen:RParen:ts) = do
-  (ts', te, ctx') <- texpr ctx (LParen:RParen:ts)
-  return (ts', Type te, ctx')
-ttype ctx (LParen:ts) = do
-  (ts', ty, ctx') <- ttype ctx ts
+ttype :: [Token] -> Either Error ([Token], Type)
+ttype [] = Left MissingType
+ttype (ForallT:(Id name):Period:ts) =
+  if and (map (isLower) name)
+    then do
+      (ts', ty) <- ttype ts
+      return (ts', quantify' $ Forall name ty)
+    else Left $ IncorrectUniversal name
+ttype (LParen:RParen:ts) = do
+  (ts', te) <- texpr (LParen:RParen:ts)
+  return (ts', quantify' $ Type te)
+ttype (LParen:ts) = do
+  (ts', ty) <- ttype ts
   case ts' of
-    RParen:back -> return (back, ty, ctx')
+    RParen:back -> return (back, ty)
     Comma:_     -> do
-      (ts'', te, _) <- texpr ctx (LParen:ts)
-      return (ts'', Type te, ctx)
+      (ts'', te) <- texpr $ LParen:ts
+      return (ts'', quantify' $ Type te)
     q:_         -> Left $ MissingParen q
-ttype ctx ts = do
-  (ts', te, ctx') <- texpr ctx ts
-  return (ts', Type te, ctx')
+ttype ts = do
+  (ts', te) <- texpr ts
+  return (ts', quantify' $ Type te)
 
-texpr :: TContext -> [Token] -> Either Error ([Token], TExpr, TContext)
-texpr _   []                 = Left $ MissingTExpr
-texpr ctx (LParen:RParen:b)  = arrow ctx Unit b
-texpr ctx ((Id "Bool"):back) = arrow ctx Bool back
-texpr ctx ((Id "Nat"):back)  = arrow ctx Nat back
-texpr ctx ((Id name):back)   =
-  case ctx name of
-    Nothing -> arrow ctx (TName name) back
-    Just _  -> arrow ctx (TVar name) back
-texpr ctx (LParen:b0)        = do
-  (b1, ty1, ctx') <- texpr ctx b0
+texpr :: [Token] -> Either Error ([Token], TExpr)
+texpr []                 = Left $ MissingTExpr
+texpr (LParen:RParen:b)  = arrow Unit b
+texpr ((Id "Bool"):back) = arrow Bool back
+texpr ((Id "Nat"):back)  = arrow Nat back
+texpr ((Id name):back)
+  | and (map (isLower) name) = arrow (TVar name) back
+  | otherwise = arrow (TName name) back
+texpr (LParen:b0)        = do
+  (b1, ty1) <- texpr b0
   case b1 of
     Comma:b2 -> do
-      (b3, ty2, _) <- texpr ctx b2
+      (b3, ty2) <- texpr b2
       case b3 of
-        RParen:b4 -> arrow ctx (TPair ty1 ty2) b4
+        RParen:b4 -> arrow (TPair ty1 ty2) b4
         q:_       -> Left $ MissingParen q
     _        -> do
-      (b2, ty2, ctx'') <- arrow ctx' ty1 b1
+      (b2, ty2) <- arrow ty1 b1
       case b2 of
-        RParen:b3 -> arrow ctx'' ty2 b2
+        RParen:b3 -> arrow ty2 b2
         q:_       -> Left $ MissingParen q
 
-arrow :: TContext -> TExpr -> [Token] -> Either Error ([Token], TExpr, TContext)
-arrow ctx t [] = return ([], t, ctx)
-arrow ctx t s  =
+arrow :: TExpr -> [Token] -> Either Error ([Token], TExpr)
+arrow t [] = return ([], t)
+arrow t s  =
   case s of
     Arr:back -> do
-      (b, t2, ctx') <- texpr ctx back
-      return (b, Arrow t t2, ctx')
-    _ -> return (s, t, ctx)
+      (b, t2) <- texpr back
+      return (b, Arrow t t2)
+    _ -> return (s, t)
