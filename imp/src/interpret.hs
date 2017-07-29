@@ -7,6 +7,8 @@ where
 
 
 import System.Console.Haskeline
+import System.Environment
+import System.Directory
 
 import Lexer
 import Parser
@@ -19,7 +21,19 @@ type Error = String
 
 
 main :: IO ()
-main = runInputT defaultSettings loop
+main = do
+  args <- getArgs
+  if null args
+    then runInputT defaultSettings loop
+    else do
+      bs <- mapM (doesFileExist) args
+      if and bs
+        then do
+          str <- getFiles args
+          case computeVal str of
+            Left e -> do putStrLn e
+            Right (_, v) -> do putStrLn $ show v
+        else error "not all files exist"
   where
     loop :: InputT IO ()
     loop = do
@@ -38,6 +52,13 @@ main = runInputT defaultSettings loop
               case computeVal txt of
                 Left e      -> do outputStrLn e; loop
                 Right (t,v) -> do outputStrLn $ show v; loop
+
+getFiles :: [String] -> IO String
+getFiles [] = return ""
+getFiles (f:fs) = do
+  s <- readFile f
+  ss <- getFiles fs
+  return $ s ++ ss
 
 computeVal :: String -> Either Main.Error (TypeChecker.Type, Language.AbstractSyntax.Term)
 computeVal txt =
