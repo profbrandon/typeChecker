@@ -8,14 +8,14 @@ Proof:  (by structural induction)
 
 	        p = p
 	====================== (FS-Primitive Equivalence)
-	findSubs({}, p, p) = s
+	findSubs({}, p, p) = {}
 	====================== (SP-Definition =>)
 	       T !> T
 
 
 	Case:  T = v
 
-	   [v :-> v] is not a member of s
+	   [v :-> v] is not a member of {}
 	===================================== (FS-Add Substitution)
 	findSubs({}, v, v) = {} U {[v :-> v]}
 	===================================== (SP-Definition =>)
@@ -45,13 +45,13 @@ Proof:  (by structural induction)
 	============================================= (SP-Definition =>)
 	                  T !> T
 	
-Thus, by structural induction, specilaization implies the existance of the identity morphism
+Thus, by structural induction, the identity morphism of specialization exists for all types
 
 
 
 
 ***********************************************************************************************************************
-The terminal type of specialization exists for all types (forall T. T !> Terminal)
+The terminal type of specialization exists such that every type is a specialization of the terminal type (forall T. (T !> Terminal))
 Given:  T2 = forall v. v
 Proof:  (by case analysis)
 
@@ -98,16 +98,16 @@ Proof:  (by case analysis)
 	========================================================= (SP-Definition =>)
 	                         T1 !> T2
 
-Thus, by case analysis, specialization implies the existance of the terminal type.
+Thus, by case analysis, there exists a terminal type 'forall v. v'
 
 
 
 
 ***********************************************************************************************************************
-The terminal arrow type of specialization exists for all arrow types (forall T11, T12. T11 -> T12 !> Terminal Arrow)
+The terminal arrow type of specialization exists such that all arrows are a specialization of the terminal arrow type (forall T11, T12. (T11 -> T12 !> Terminal Arrow))
 Given:  
 	T1 = T11 -> T12
-	T2 = forall v1. forall v2. v1 -> v2
+	T2 = forall v1. forall v2. v1 -> v2 (condensed)
 Proof:  (by structural induction)
 
 	Case:  T11 = t1, T12 = t2
@@ -169,4 +169,9 @@ Proof:  (by structural induction)
 	   ====================================================================================================================== (SP-Definition =>)
 	                                                        T1 !> T2
 
-Thus, by structural induction, specialization implies the existance of the terminal arrow type for all arrow types.
+Thus, by structural induction, there exists a terminal arrow type 'forall v1. forall v2. v1 -> v2'
+
+
+
+
+
