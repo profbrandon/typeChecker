@@ -51,15 +51,17 @@ import TypeChecker.UniversalQuantifiers.Utils
 import Language.AbstractSyntax
 
 
-data Error = ParamTypeMismatch   Type Type
-           | IfBranchMismatch    Type Type
-           | ExpectedArrow       Type
-           | ExpectedBoolGuard   Type
-           | ExpectedPairtoFst   Type
-           | ExpectedPairtoSnd   Type
-           | ExpectedNattoSucc   Type
-           | ExpectedNattoPred   Type
-           | ExpectedNattoIsZero Type
+data Error = ParamTypeMismatch    Type Type
+           | IfBranchMismatch     Type Type
+           | ProjectionMismatch   Type String
+           | ExpectedArrow        Type
+           | ExpectedBoolGuard    Type
+           | ExpectedPairtoFst    Type
+           | ExpectedPairtoSnd    Type
+           | ExpectedNattoSucc    Type
+           | ExpectedNattoPred    Type
+           | ExpectedNattoIsZero  Type
+           | ExpectedRecordtoProj Type
            | UnboundVar
 
 instance Show Error where
@@ -68,6 +70,7 @@ instance Show Error where
 showError :: Error -> String
 showError (ParamTypeMismatch t1 t2) = "parameter type mismatch. Expected type " ++ show t1 ++ ", recieved type " ++ show t2
 showError (IfBranchMismatch t1 t2)  = "type mismatch in branches of conditional. Recieved types " ++ show t1 ++ " and " ++ show t2
+showError (ProjectionMismatch t s)  = "type mismatch in projection.  Recieved field " ++ s ++ ", expected a member of " ++ show t
 showError (ExpectedArrow t)         = "expected arrow type, recieved type " ++ show t
 showError (ExpectedBoolGuard t)     = "expected argument of type Bool to guard of conditional, recieved type " ++ show t
 showError (ExpectedPairtoFst t)     = "expected argument of type (a, b) to \'fst\' function, recieved type " ++ show t
@@ -75,6 +78,7 @@ showError (ExpectedPairtoSnd t)     = "expected argument of type (a, b) to \'snd
 showError (ExpectedNattoSucc t)     = "expected argument of type Nat to \'succ\' function, recieved type " ++ show t
 showError (ExpectedNattoPred t)     = "expected argument of type Nat to \'pred\' function, recieved type " ++ show t
 showError (ExpectedNattoIsZero t)   = "expected argument of type Nat to \'iszero\' function, recieved type " ++ show t
+showError (ExpectedRecordtoProj t)  = "expected argument of type {a = A,b = B,...} to projection, recieved type " ++ show t
 showError (UnboundVar)              = "unbound variable"
 
 
@@ -112,6 +116,24 @@ typeof0 tctx vctx (Let s t1 t2)  = do
   let tctx' = addAllBindings (fst $ separate ty1) tctx
       vctx' = pushBinding vctx (s, ty1)
   typeof0 tctx' vctx' t2
+typeof0 tctx vctx (Record fs)    =
+  let fields fs = case fs of
+        []            -> return []
+        ((s, te):fs') -> do
+          tf <- typeof0 tctx vctx te
+          tfs <- fields fs'
+          return $ (s, tf):tfs
+  in do
+    fs' <- fields fs
+    return $ Type $ TRec fs'
+typeof0 tctx vctx (Proj t s)     = do
+  ty <- typeof0 tctx vctx t
+  case ty of
+    Type (TRec fs) ->
+      case s `lookup` fs of
+        Nothing  -> Left $ ProjectionMismatch ty s
+        Just tys -> return tys
+    _              -> Left $ ExpectedRecordtoProj ty
 typeof0 tctx vctx (Pair t1 t2)   = do
   ty1 <- typeof0 tctx vctx t1
   ty2 <- typeof0 tctx vctx t2

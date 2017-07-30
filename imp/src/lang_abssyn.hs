@@ -12,15 +12,17 @@ where
 import TypeChecker.Utils
 import TypeChecker.Types
 
-data Term = Abs    String Type Term
+data Term = Abs    String Type   Term
           | App    Term   Term
           | Var    Int
-          | Let    String Term Term
+          | Let    String Term   Term
           | Fix    Term
+          | Record Fields
+          | Proj   Term   String
           | Pair   Term   Term
           | Fst    Term
           | Snd    Term
-          | If     Term   Term Term
+          | If     Term   Term   Term
           | IsZero Term
           | Succ   Term
           | Pred   Term
@@ -29,6 +31,8 @@ data Term = Abs    String Type Term
           | Zero
           | EUnit
           | Error
+
+type Fields = [(String, Term)]
 
 type VContext = Function Int (String, Type)
 
@@ -48,6 +52,7 @@ isValue Zero        = True
 isValue EUnit       = True
 isValue Error       = True
 isValue (Abs _ _ _) = True
+isValue (Record _)  = True
 isValue (Pair _ _)  = True
 isValue (Succ t)    = isValue t
 isValue _           = False
@@ -57,12 +62,19 @@ toInt Zero     = 0
 toInt (Succ t) = 1 + (toInt t)
 toInt _        = error "non-numeric args supplied to \'toInt\'"
 
+showFields :: VContext -> Fields -> String
+showFields _   [] = " "
+showFields ctx [f]    = fst f ++ " = " ++ show (snd f)
+showFields ctx (f:fs) = fst f ++ " = " ++ show (snd f) ++ "," ++ showFields ctx fs
+
 showTerm :: VContext -> Term -> String
 showTerm _   Tru           = "True"
 showTerm _   Fls           = "False"
 showTerm _   Zero          = "0"
 showTerm _   EUnit         = "()"
 showTerm _   Error         = "Error"
+showTerm ctx (Record fs)   = "{" ++ showFields ctx fs ++ "}"
+showTerm ctx (Proj t s)    = showTerm ctx t ++ "." ++ s
 showTerm ctx (Pair t1 t2)  = "(" ++ showTerm ctx t1 ++ "," ++ showTerm ctx t2 ++ ")"
 showTerm ctx (Let s t1 t2) = "let " ++ s ++ " = " ++ showTerm ctx t1 ++ " in " ++ showTerm ctx' t2 where ctx' = pushBinding ctx (s, Type $ TName "Dummy")
 showTerm ctx (Fix t)       = "fix (" ++ showTerm ctx t ++ ")"

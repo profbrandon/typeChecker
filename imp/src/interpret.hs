@@ -7,6 +7,8 @@ where
 
 
 import System.Console.Haskeline
+import System.Environment
+import System.Directory
 
 import Lexer
 import Parser
@@ -19,10 +21,20 @@ type Error = String
 
 
 main :: IO ()
-main = runInputT defaultSettings loop
+main = do
+  args <- getArgs
+  if null args
+    then runInputT defaultSettings (loop "")
+    else do
+      bs <- mapM (doesFileExist) args
+      if and bs
+        then do
+          str <- getFiles args
+          runInputT defaultSettings (loop str)
+        else error "not all files exist"
   where
-    loop :: InputT IO ()
-    loop = do
+    loop :: String -> InputT IO ()
+    loop pre = do
       minput <- getInputLine "Brandon's Interpreter> "
       case minput of
         Nothing     -> return ()
@@ -31,13 +43,20 @@ main = runInputT defaultSettings loop
           case txt of
             ":exit"         -> return ()
             ':':'t':'y':'p':'e':'o':'f':txt' ->
-              case computeVal txt' of
-                Left e      -> do outputStrLn e; loop
-                Right (t,v) -> do outputStrLn $ show t; loop
+              case computeVal (pre ++ ' ':txt') of
+                Left e      -> do outputStrLn e; loop pre
+                Right (t,v) -> do outputStrLn $ show t; loop pre
             _       ->
-              case computeVal txt of
-                Left e      -> do outputStrLn e; loop
-                Right (t,v) -> do outputStrLn $ show v; loop
+              case computeVal (pre ++ ' ':txt) of
+                Left e      -> do outputStrLn e; loop pre
+                Right (t,v) -> do outputStrLn $ show v; loop pre
+
+getFiles :: [String] -> IO String
+getFiles [] = return ""
+getFiles (f:fs) = do
+  s <- readFile f
+  ss <- getFiles fs
+  return $ s ++ ss
 
 computeVal :: String -> Either Main.Error (TypeChecker.Type, Language.AbstractSyntax.Term)
 computeVal txt =

@@ -19,6 +19,8 @@ data Token = Id      String
            | In
            | Equ
            | FixT
+           | LCurly
+           | RCurly
            | IfT
            | Then
            | Else
@@ -52,6 +54,8 @@ showToken0 LetT    = "let"
 showToken0 In      = "in"
 showToken0 Equ     = "="
 showToken0 FixT    = "fix"
+showToken0 LCurly  = "{"
+showToken0 RCurly  = "}"
 showToken0 IfT     = "if"
 showToken0 Then    = "then"
 showToken0 Else    = "else"

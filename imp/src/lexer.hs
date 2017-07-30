@@ -57,6 +57,8 @@ lex (c:cs)
       ':'  -> a1 Colon 
       '('  -> a1 LParen
       ')'  -> a1 RParen
+      '{'  -> a1 LCurly
+      '}'  -> a1 RCurly
       '='  -> a1 Equ
       ','  -> a1 Comma
       '-'  ->

@@ -25,7 +25,10 @@ data TExpr = Arrow TExpr  TExpr
            | Nat
            | Unit
            | TPair TExpr  TExpr
+           | TRec  Fields
            deriving Eq
+
+type Fields = [(String, Type)]
 
 type TContext = Function String String
 
@@ -39,6 +42,11 @@ addAllBindings :: [String] -> TContext -> TContext
 addAllBindings []     ctx = ctx
 addAllBindings (x:xs) ctx = addBinding x x ctx' where ctx' = addAllBindings xs ctx
 
+showFields :: Fields -> String
+showFields []  = " "
+showFields [f] = fst f ++ " : " ++ (show . snd) f
+showFields (f:fs) = fst f ++ " : " ++ show (snd f) ++ "," ++ showFields fs
+
 showType :: TContext -> Type -> String
 showType _   Top          = "Top"
 showType _   Bottom       = "Bottom"
@@ -51,6 +59,7 @@ showTExpr Nat         = "Nat"
 showTExpr Unit        = "()"
 showTExpr (TVar n)    = n
 showTExpr (TName n)   = n
+showTExpr (TRec fs)   = "{" ++ showFields fs ++ "}"
 showTExpr (TPair a b) = "(" ++ show a ++ "," ++ show b ++ ")"
 showTExpr (Arrow a b) =
   case a of

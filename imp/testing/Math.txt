@@ -1,0 +1,92 @@
+let Math = fix \math :
+  { zero   : Nat -> Bool
+  , one    : Nat -> Bool
+  , even   : Nat -> Bool
+  , odd    : Nat -> Bool
+  , equals : Nat -> Nat -> Bool
+  , add    : Nat -> Nat -> Nat
+  , sub    : Nat -> Nat -> Nat
+  , mult   : Nat -> Nat -> Nat
+  , div    : Nat -> Nat -> Nat
+  , fac    : Nat -> Nat
+  , fib    : Nat -> Nat
+  , square : Nat -> Nat
+  , exp    : Nat -> Nat -> Nat
+  }.
+    
+{ zero = \n : Nat. iszero n
+
+, one = \n : Nat. if iszero n then False else iszero (pred n)
+
+, even = \n : Nat.
+           if iszero n
+	     then True
+	     else math.odd (pred n)
+
+, odd = \n : Nat.
+          if iszero n
+	    then False
+	    else math.even (pred n)
+
+, equals = \a : Nat. \b : Nat.
+             if iszero a
+	       then iszero b
+	       else if iszero b
+	         then False
+		 else math.equals (pred a) (pred b)
+
+, add = \a : Nat. \b : Nat.
+          if iszero a
+	    then b
+	    else if iszero b
+	      then a
+	      else math.add (pred a) (succ b)
+
+, sub = \a : Nat. \b : Nat.
+          if iszero a
+	    then 0
+	    else if iszero b
+	      then a
+	      else math.sub (pred a) (pred b)
+
+, mult = \a : Nat. \b : Nat.
+           if iszero a
+           then 0
+	     else if iszero b
+	       then 0
+	       else math.add (math.mult (pred a) b) b
+
+, div = \a : Nat. \b : Nat.
+          let div0 = fix \d : Nat -> Nat -> Nat -> Nat. \acc : Nat. \aa : Nat. \bb : Nat.
+	        if iszero aa
+		  then acc
+		  else if iszero bb
+		    then 0
+		    else d (succ acc) (math.sub aa bb) bb
+	  in div0 0 a b
+
+, fac = \n : Nat.
+          if iszero n
+	    then 1
+	    else math.mult n (math.fac (pred n))
+
+, fib = \n : Nat.
+          if iszero n
+	    then 0
+	    else if math.one n
+	      then 1
+	      else
+	        let f1 = math.fib (pred n) in
+	        let f2 = math.fib (pred (pred n))
+		in math.add f1 f2
+
+, square = \n : Nat. math.mult n n
+
+, exp = \a : Nat. \b : Nat.
+          if iszero b
+            then 1
+	    else let back = math.exp a (pred b)
+              in math.mult a back
+}
+
+in 

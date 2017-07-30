@@ -13,6 +13,12 @@ shiftnl :: Int -> Int -> Term -> Term
 shiftnl d c (Abs s ty t)  = Abs s ty $ shiftnl d (c + 1) t
 shiftnl d c (App t1 t2)   = App (shiftnl d c t1) (shiftnl d c t2)
 shiftnl d c (Var k)       = Var $ if k < c then k else (k + d)
+shiftnl d c (Record ts)   =
+  let sh ts = case ts of
+        []     -> []
+        ((ss, t):ts) -> (ss, t'):(sh ts) where t' = shiftnl d c t
+  in Record (sh ts)
+shiftnl d c (Proj t s)    = Proj (shiftnl d c t) s
 shiftnl d c (Pair t1 t2)  = Pair (shiftnl d c t1) (shiftnl d c t2)
 shiftnl d c (Fix t)       = Fix $ shiftnl d c t
 shiftnl d c (Let s t1 t2) = Let s (shiftnl d c t1) $ shiftnl d (c + 1) t2
@@ -28,6 +34,12 @@ sub :: Int -> Term -> Term -> Term
 sub j s (Abs ss ty t)  = Abs ss ty t' where t' = sub (j + 1) (shiftnl 1 0 s) t
 sub j s (App t1 t2)    = App (sub j s t1) (sub j s t2)
 sub j s (Var i)        = if i == j then s else (Var i)
+sub j s (Record ts)    =
+  let su ts = case ts of
+        []     -> []
+        ((ss, t):ts) -> (ss, t'):(su ts) where t' = sub j s t
+  in Record (su ts)
+sub j s (Proj t ss)    = Proj (sub j s t) ss
 sub j s (Pair t1 t2)   = Pair (sub j s t1) (sub j s t2)
 sub j s (Fix t)        = Fix $ sub j s t
 sub j s (Let ss t1 t2) = Let ss (sub j s t1) (sub (j + 1) (shiftnl 1 0 s) t2)
@@ -58,14 +70,31 @@ eval1 (Let s t1 t2)           =
     else do
       t1' <- eval1 t1
       return $ Let s t1' t2
-eval1 (Pair t1 t2)            =
-  if isValue t1
-    then do
-      t2' <- eval1 t2
-      return $ Pair t1 t2'
+eval1 (Record fs)             =
+  let fields fs = case fs of
+        []      -> Nothing
+        ((s, t):fs0) -> do
+          let t' = eval t
+          fs0' <- fields fs0
+          return $ (s, t'):fs0'
+  in do
+    fs' <- fields fs
+    return $ Record fs'
+eval1 (Proj t s)              =
+  if isValue t
+    then case t of
+      Record fs ->
+        case s `lookup` fs of
+          Nothing -> error $ "field \'" ++ s ++ "\' not a member of record"
+          Just tt -> return tt
+      _         -> error "record not provided to projection"
     else do
-      t1' <- eval1 t1
-      return $ Pair t1' t2
+      t' <- eval1 t
+      return $ Proj t' s
+eval1 (Pair t1 t2)            = do
+  t1' <- eval1 t1
+  t2' <- eval1 t2
+  return $ Pair t1' t2'
 eval1 (Fix (Abs s ty t))      = return $ shiftnl (-1) 0 $ sub 0 (shiftnl 1 0 $ Fix (Abs s ty t)) t
 eval1 (Fix t)                 = do
   t' <- eval1 t
