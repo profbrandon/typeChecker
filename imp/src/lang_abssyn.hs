@@ -9,28 +9,29 @@ module Language.AbstractSyntax
   )
 where
 
+import Text.Parsec (SourcePos)
+
 import TypeChecker.Utils
 import TypeChecker.Types
 
-data Term = Abs    String Type   Term
-          | App    Term   Term
-          | Var    Int
-          | Let    String Term   Term
-          | Fix    Term
-          | Record Fields
-          | Proj   Term   String
-          | Pair   Term   Term
-          | Fst    Term
-          | Snd    Term
-          | If     Term   Term   Term
-          | IsZero Term
-          | Succ   Term
-          | Pred   Term
-          | Tru
-          | Fls
-          | Zero
-          | EUnit
-          | Error
+data Term = Abs    String Type   Term SourcePos
+          | App    Term   Term        SourcePos
+          | Var    Int                SourcePos
+          | Let    String Term   Term SourcePos
+          | Fix    Term               SourcePos
+          | Record Fields             SourcePos
+          | Proj   Term   String      SourcePos
+          | Pair   Term   Term        SourcePos
+          | Fst    Term               SourcePos
+          | Snd    Term               SourcePos
+          | If     Term   Term   Term SourcePos
+          | IsZero Term               SourcePos
+          | Succ   Term               SourcePos
+          | Pred   Term               SourcePos
+          | Tru                       SourcePos
+          | Fls                       SourcePos
+          | Zero                      SourcePos
+          | EUnit                     SourcePos
 
 type Fields = [(String, Term)]
 
@@ -46,53 +47,51 @@ pushBinding :: VContext -> (String, Type) -> VContext
 pushBinding ctx p = addBinding 0 p ctx' where ctx' = shiftBindings ctx
 
 isValue :: Term -> Bool
-isValue Tru         = True
-isValue Fls         = True
-isValue Zero        = True
-isValue EUnit       = True
-isValue Error       = True
-isValue (Abs _ _ _) = True
-isValue (Record _)  = True
-isValue (Pair _ _)  = True
-isValue (Succ t)    = isValue t
-isValue _           = False
+isValue (Tru _)       = True
+isValue (Fls _)       = True
+isValue (Zero _)      = True
+isValue (EUnit _)     = True
+isValue (Abs _ _ _ _) = True
+isValue (Record _ _)  = True
+isValue (Pair _ _ _)  = True
+isValue (Succ t _)    = isValue t
+isValue _             = False
 
 toInt :: Term -> Int
-toInt Zero     = 0
-toInt (Succ t) = 1 + (toInt t)
-toInt _        = error "non-numeric args supplied to \'toInt\'"
+toInt (Zero _)   = 0
+toInt (Succ t _) = 1 + (toInt t)
+toInt _          = error "non-numeric args supplied to \'toInt\'"
 
 showFields :: VContext -> Fields -> String
 showFields _   [] = " "
-showFields ctx [f]    = fst f ++ " = " ++ show (snd f)
-showFields ctx (f:fs) = fst f ++ " = " ++ show (snd f) ++ "," ++ showFields ctx fs
+showFields ctx [f]    = fst f ++ " = " ++ showTerm ctx (snd f)
+showFields ctx (f:fs) = fst f ++ " = " ++ showTerm ctx (snd f) ++ "," ++ showFields ctx fs
 
 showTerm :: VContext -> Term -> String
-showTerm _   Tru           = "True"
-showTerm _   Fls           = "False"
-showTerm _   Zero          = "0"
-showTerm _   EUnit         = "()"
-showTerm _   Error         = "Error"
-showTerm ctx (Record fs)   = "{" ++ showFields ctx fs ++ "}"
-showTerm ctx (Proj t s)    = showTerm ctx t ++ "." ++ s
-showTerm ctx (Pair t1 t2)  = "(" ++ showTerm ctx t1 ++ "," ++ showTerm ctx t2 ++ ")"
-showTerm ctx (Let s t1 t2) = "let " ++ s ++ " = " ++ showTerm ctx t1 ++ " in " ++ showTerm ctx' t2 where ctx' = pushBinding ctx (s, Type $ TName "Dummy")
-showTerm ctx (Fix t)       = "fix (" ++ showTerm ctx t ++ ")"
-showTerm ctx (If t1 t2 t3) = "if " ++ s t1 ++ " then " ++ s t2 ++ " else " ++ s t3 where s a = showTerm ctx a
-showTerm ctx (Fst t)       = "fst (" ++ showTerm ctx t ++ ")"
-showTerm ctx (Snd t)       = "snd (" ++ showTerm ctx t ++ ")"
-showTerm ctx (IsZero t)    = "iszero (" ++ showTerm ctx t ++ ")"
-showTerm ctx (Succ t)
-  | isValue t = show $ toInt (Succ t)
+showTerm _   (Tru _)         = "True"
+showTerm _   (Fls _)         = "False"
+showTerm _   (Zero _)        = "0"
+showTerm _   (EUnit _)       = "()"
+showTerm ctx (Record fs _)   = "{" ++ showFields ctx fs ++ "}"
+showTerm ctx (Proj t s _)    = showTerm ctx t ++ "." ++ s
+showTerm ctx (Pair t1 t2 _)  = "(" ++ showTerm ctx t1 ++ "," ++ showTerm ctx t2 ++ ")"
+showTerm ctx (Let s t1 t2 _) = "let " ++ s ++ " = " ++ showTerm ctx t1 ++ " in " ++ showTerm ctx' t2 where ctx' = pushBinding ctx (s, Type $ TName "")
+showTerm ctx (Fix t _)       = "fix (" ++ showTerm ctx t ++ ")"
+showTerm ctx (If t1 t2 t3 _) = "if " ++ s t1 ++ " then " ++ s t2 ++ " else " ++ s t3 where s a = showTerm ctx a
+showTerm ctx (Fst t _)       = "fst (" ++ showTerm ctx t ++ ")"
+showTerm ctx (Snd t _)       = "snd (" ++ showTerm ctx t ++ ")"
+showTerm ctx (IsZero t _)    = "iszero (" ++ showTerm ctx t ++ ")"
+showTerm ctx (Succ t pos)
+  | isValue t = show $ toInt (Succ t pos)
   | otherwise = "succ (" ++ showTerm ctx t ++ ")"
-showTerm ctx (Pred t)      = "pred (" ++ showTerm ctx t ++ ")"
-showTerm ctx (Abs s ty te) = "\\" ++ s ++ " : " ++ show ty ++ ". " ++ showTerm ctx' te where ctx' = pushBinding ctx (s, ty)
-showTerm ctx (App t1 t2)   =
+showTerm ctx (Pred t _)      = "pred (" ++ showTerm ctx t ++ ")"
+showTerm ctx (Abs s ty te _) = "\\" ++ s ++ " : " ++ show ty ++ ". " ++ showTerm ctx' te where ctx' = pushBinding ctx (s, ty)
+showTerm ctx (App t1 t2 _)   =
   front ++ " " ++ back
   where s t   = showTerm ctx t
-        front = case t1 of Abs _ _ _ -> "(" ++ s t1 ++ ")"; _ -> s t1
-        back  = case t2 of App _ _   -> "(" ++ s t2 ++ ")"; Abs _ _ _ -> "(" ++ s t2 ++ ")"; _ -> s t2
-showTerm ctx (Var i)       =
+        front = case t1 of Abs _ _ _ _ -> "(" ++ s t1 ++ ")"; _ -> s t1
+        back  = case t2 of App _ _ _   -> "(" ++ s t2 ++ ")"; Abs _ _ _ _ -> "(" ++ s t2 ++ ")"; _ -> s t2
+showTerm ctx (Var i _)       =
   case ctx i of
     Nothing     -> "(Var " ++ show i ++ ")"
     Just (s, _) -> s
