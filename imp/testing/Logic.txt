@@ -1,26 +1,29 @@
 let Logic = fix \logic :
-  { not  : Bool -> Bool
-  , or   : Bool -> Bool -> Bool
-  , nor  : Bool -> Bool -> Bool
-  , and  : Bool -> Bool -> Bool
-  , nand : Bool -> Bool -> Bool
-  , xor  : Bool -> Bool -> Bool
-  , xnor : Bool -> Bool -> Bool
+  { not     : Bool -> Bool
+  , or      : Bool -> Bool -> Bool
+  , nor     : Bool -> Bool -> Bool
+  , and     : Bool -> Bool -> Bool
+  , nand    : Bool -> Bool -> Bool
+  , xor     : Bool -> Bool -> Bool
+  , xnor    : Bool -> Bool -> Bool
+  , implies : Bool -> Bool -> Bool
   }.
   
 { not = \b : Bool. if b then False else True
 
 , or = \a : Bool. \b : Bool. if a then True else b
 
-, nor = \a : Bool. Fun.compose not (logic.or a)
+, nor = \a : Bool. Fun.compose logic.not (logic.or a)
 
 , and = \a : Bool. \b : Bool. if a then b else False
 
-, nand = \a : Bool. Fun.compose not (logic.and a)
+, nand = \a : Bool. Fun.compose logic.not (logic.and a)
 
 , xor = \a : Bool. \b : Bool. if a then (logic.not b) else b
 
-, xnor = \a : Bool. Fun.compose not (logic.xor a)
+, xnor = \a : Bool. Fun.compose logic.not (logic.xor a)
+
+, implies = \a : Bool. \b : Bool. if a then b else True
 }
 
 in

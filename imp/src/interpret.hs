@@ -10,7 +10,6 @@ import System.Console.Haskeline
 import System.Environment
 import System.Directory
 
-import Lexer
 import Parser
 import Evaluator
 import TypeChecker
@@ -60,12 +59,9 @@ getFiles (f:fs) = do
 
 computeVal :: String -> Either Main.Error (TypeChecker.Type, Language.AbstractSyntax.Term)
 computeVal txt =
-  case Lexer.lex txt of
-    Left e     -> Left $ "Lexical Error:  " ++ show e
-    Right toks ->
-      case Parser.parse toks of
-        Left e     -> Left $ "Parsing Error:  " ++ show e
-        Right term ->
-          case TypeChecker.typeof term of
-            Left e   -> Left $ "Type Error:  " ++ show e
-            Right ty -> return $ (ty, eval term)
+  case Parser.parse txt of
+    Left e     -> Left $ "Parsing Error:  " ++ show e
+    Right term ->
+      case TypeChecker.typeof term of
+        Left e   -> Left $ "Type Error:  " ++ show e
+        Right ty -> return $ (ty, eval term)
