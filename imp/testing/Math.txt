@@ -11,6 +11,7 @@ let Math = fix \math :
   , fac    : Nat -> Nat
   , fib    : Nat -> Nat
   , square : Nat -> Nat
+  , exp    : Nat -> Nat -> Nat
   }.
     
 { zero = \n : Nat. iszero n
@@ -80,6 +81,12 @@ let Math = fix \math :
 		in math.add f1 f2
 
 , square = \n : Nat. math.mult n n
+
+, exp = \a : Nat. \b : Nat.
+          if iszero b
+            then 1
+	    else let back = math.exp a (pred b)
+              in math.mult a back
 }
 
-in Fun.uncurry (Math.add) (3, 4)
+in 

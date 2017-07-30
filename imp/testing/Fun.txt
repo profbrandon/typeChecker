@@ -2,6 +2,7 @@ let Fun = fix \fun :
   { compose : (b -> c) -> (a -> b) -> a -> c
   , curry   : ((a, b) -> c) -> a -> b -> c
   , uncurry : (a -> b -> c) -> (a, b) -> c
+  , swap    : (a -> b -> c) -> b -> a -> c
   }.
 
 { compose = \g : b -> c. \f : a -> b. \x : a. g (f x)
@@ -9,6 +10,8 @@ let Fun = fix \fun :
 , curry = \f : (a, b) -> c. \a : a. \b : b. f (a, b)
 
 , uncurry = \f : a -> b -> c. \p : (a, b). f (fst p) (snd p)
+
+, swap = \f : a -> b -> c. \b : b. \a : a. f a b
 }
 
 in
