@@ -10,7 +10,6 @@ import System.Console.Haskeline
 import System.Environment
 import System.Directory
 
-import Lexer
 import Parser
 import Evaluator
 import TypeChecker
