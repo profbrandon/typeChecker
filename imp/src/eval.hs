@@ -5,6 +5,7 @@ module Evaluator
 where
 
 import Language.AbstractSyntax
+import Evaluator.PatternMatching
 
 
 -- Evaluation
@@ -51,6 +52,10 @@ sub j s (Pred t pos)       = Pred (sub j s t) pos
 sub j s (IsZero t pos)     = IsZero (sub j s t) pos
 sub _ _ t                  = t
 
+subPats :: [(String, Term)] -> Term -> Term
+subPats [] t           = t
+subPats ((_, t):xs) te = subPats xs te' where te' = shiftnl (-1) 0 $ sub 0 (shiftnl 1 0 t) te
+
 eval1 :: Term -> Maybe Term
 eval1 (Abs s ty t pos)            = do
   t' <- eval1 t
@@ -64,12 +69,15 @@ eval1 (App (Abs s ty t11 pos1) t2 pos2) =
 eval1 (App t1 t2 pos)              = do
   t1' <- eval1 t1
   return $ App t1' t2 pos
-eval1 (Let s t1 t2 pos)            =
+eval1 (Let p t1 t2 pos)            =
   if isValue t1
-    then return $ shiftnl (-1) 0 $ sub 0 (shiftnl 1 0 t1) t2
+    then let msubs = match p t1
+      in case msubs of
+        Nothing   -> error $ "error in pattern matching:  " ++ show pos
+        Just subs -> return $ subPats (reverse subs) t2
     else do
       t1' <- eval1 t1
-      return $ Let s t1' t2 pos
+      return $ Let p t1' t2 pos
 eval1 (Record fs pos)              =
   let fields fs = case fs of
         []      -> Nothing

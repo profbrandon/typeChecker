@@ -10,6 +10,7 @@ import Text.Parsec.Prim (getPosition)
 import Text.Parsec.Char
 import Text.Parsec.String
 
+import Language.Patterns
 import Language.AbstractSyntax
 import TypeChecker.Types
 import TypeChecker.Utils
@@ -70,13 +71,13 @@ letin :: VContext -> Parser Term
 letin vctx = do
   pos <- getPosition
   string "let";    white
-  s <- identifier; white
-  let vctx' = pushBinding vctx (s, Type $ TName "")
+  p <- pat; white
+  let vctx' = addPatterns vctx p
   char '=';        white
   t1 <- expr vctx
   string "in";     white
   t2 <- expr vctx'
-  return $ Let s t1 t2 pos
+  return $ Let p t1 t2 pos
 
 cond :: VContext -> Parser Term
 cond vctx = do
@@ -254,6 +255,43 @@ tfield = do
   char ':'; white
   ty <- typ;
   return (n, ty)
+
+
+
+-- Parsers for Patterns
+
+pat :: Parser Pat
+pat = (try pvar) 
+  <|> (try ppair)
+  <|> (try prec)
+
+pvar :: Parser Pat
+pvar = do
+  s <- identifier; white
+  return $ PVar s
+
+ppair :: Parser Pat
+ppair = do
+  char '(';  white
+  p1 <- pat; white
+  char ',';  white
+  p2 <- pat; white
+  char ')';  white
+  return $ PPair p1 p2
+
+prec :: Parser Pat
+prec = do
+  char '{'; white
+  ps <- sepBy pfield (do char ','; white)
+  char '}'; white
+  return $ PRec ps
+
+pfield :: Parser (String, Pat)
+pfield = do
+  n <- identifier; white
+  char '=';        white
+  p <- pat;        white
+  return (n, p)
 
 
 

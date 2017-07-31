@@ -1,31 +1,3 @@
--- Type Checker for an extension to the Lambda Calculus
-
--- Supported Language Features:
-
---   Abstractions
---   Application
---   Variables
---   Recursion
---   Conditionals
---   Successor Function
---   Predeccessor Function
---   Zero Test
---   Boolean Values
---   Natural Values
---   Unit Value
---   Errors (Uncaught Exceptions)
-
--- Supported Typing Features:
-
---   Universal Quantification (Parametric Polymorphism)
---   Type Variables
---   Top Type
---   Bottom Type
---   Arrow Types (Function Types)
---   Bool Type
---   Nat Type
---   Unit Type
---   Subtyping
 
 module TypeChecker
   ( Term(..)
@@ -49,6 +21,8 @@ import Text.Parsec (SourcePos)
 import TypeChecker.Utils
 import TypeChecker.Types
 import TypeChecker.UniversalQuantifiers.Utils
+import TypeChecker.PatternMatching
+import Evaluator.PatternMatching
 import Language.AbstractSyntax
 
 
@@ -63,6 +37,7 @@ data Error = ParamTypeMismatch    Type Type   SourcePos
            | ExpectedNattoPred    Type        SourcePos
            | ExpectedNattoIsZero  Type        SourcePos
            | ExpectedRecordtoProj Type        SourcePos
+           | PatternError                     SourcePos
            | UnboundVar                       SourcePos
 
 instance Show Error where
@@ -80,6 +55,7 @@ showError (ExpectedNattoSucc t pos)     = "expected argument of type Nat to \'su
 showError (ExpectedNattoPred t pos)     = "expected argument of type Nat to \'pred\' function, recieved type " ++ show t ++ " at " ++ show pos
 showError (ExpectedNattoIsZero t pos)   = "expected argument of type Nat to \'iszero\' function, recieved type " ++ show t ++ " at " ++ show pos
 showError (ExpectedRecordtoProj t pos)  = "expected argument of type {a = A,b = B,...} to projection, recieved type " ++ show t ++ " at " ++ show pos
+showError (PatternError pos)            = "pattern error at " ++ show pos
 showError (UnboundVar pos)              = "unbound variable at " ++ show pos
 
 
@@ -112,11 +88,15 @@ typeof0 tctx vctx (App t1 t2 pos)    = do
       if ty1 == Bottom
         then return Bottom
         else Left $ ExpectedArrow ty1 pos
-typeof0 tctx vctx (Let s t1 t2 _)  = do
+typeof0 tctx vctx (Let p t1 t2 pos)  = do
   ty1 <- typeof0 tctx vctx t1
-  let tctx' = addAllBindings (fst $ separate ty1) tctx
-      vctx' = pushBinding vctx (s, ty1)
-  typeof0 tctx' vctx' t2
+  let msubs = tmatch p ty1
+  case msubs of
+    Nothing   -> Left $ PatternError pos
+    Just subs -> do
+      let tctx' = addAllBindings (fst $ separate ty1) tctx
+          vctx' = pushAllBindings vctx subs
+      typeof0 tctx' vctx' t2
 typeof0 tctx vctx (Record fs _)    =
   let fields fs = case fs of
         []            -> return []

@@ -6,7 +6,6 @@ import Data.Maybe (isJust, isNothing)
 
 import TypeChecker.Utils
 import TypeChecker.Types
-import Language.AbstractSyntax
 
 
 
