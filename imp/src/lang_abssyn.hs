@@ -8,9 +8,11 @@ module Language.AbstractSyntax
   , pushAllBindings
   , isValue
   , addPatterns
+  , union
   )
 where
 
+import Data.List (delete, lookup)
 import Text.Parsec (SourcePos)
 
 import TypeChecker.Utils
@@ -112,3 +114,12 @@ showTerm ctx (Var i _)       =
   case ctx i of
     Nothing     -> "(Var " ++ show i ++ ")"
     Just (s, _) -> s
+
+union :: [(String, Term)] -> [(String, Term)] -> [(String, Term)]
+union [] []       = []
+union s  []       = s
+union [] s        = s
+union ((s1, t):xs) ys =
+  case s1 `lookup` ys of
+    Nothing -> (s1, t):back where back = xs `union` ys
+    Just p  -> (s1, t):back where back = (s1, p) `delete` ys

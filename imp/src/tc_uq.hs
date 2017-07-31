@@ -180,6 +180,7 @@ special t1 t2 = isJust $ findSubs [] t2 t1
   -- where s (t2) denotes performing all substitutions in s on t2
 findSubs :: [(String,Type)] -> Type -> Type -> Maybe [(String, Type)]
 findSubs s  (Forall v1 tt1) (Forall v2 tt2) = findSubs s tt1 tt2
+findSubs s  (Forall v tt) t = findSubs s tt t
 findSubs s  t (Forall v tt) = findSubs s t tt
 findSubs s0 (Type (Arrow t11 t12)) (Type (Arrow t21 t22)) = do
   s1 <- findSubs s0 (Type t11) (Type t21)

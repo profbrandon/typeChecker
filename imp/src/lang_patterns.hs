@@ -1,6 +1,6 @@
 
 module Language.Patterns 
-  (Pat(..))
+  ( Pat(..) )
 where
 
 data Pat = PVar String

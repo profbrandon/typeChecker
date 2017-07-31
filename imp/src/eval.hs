@@ -22,7 +22,7 @@ shiftnl d c (Record ts pos)   =
 shiftnl d c (Proj t s pos)    = Proj (shiftnl d c t) s pos
 shiftnl d c (Pair t1 t2 pos)  = Pair (shiftnl d c t1) (shiftnl d c t2) pos
 shiftnl d c (Fix t pos)       = Fix (shiftnl d c t) pos
-shiftnl d c (Let s t1 t2 pos) = Let s (shiftnl d c t1) (shiftnl d (c + 1) t2) pos
+shiftnl d c (Let p t1 t2 pos) = Let p (shiftnl d c t1) (shiftnl d (c + 1) t2) pos
 shiftnl d c (If t1 t2 t3 pos) = If (sh t1) (sh t2) (sh t3) pos where sh = shiftnl d c
 shiftnl d c (Fst t pos)       = Fst (shiftnl d c t) pos
 shiftnl d c (Snd t pos)       = Snd (shiftnl d c t) pos
@@ -43,7 +43,7 @@ sub j s (Record ts pos)    =
 sub j s (Proj t ss pos)    = Proj (sub j s t) ss pos
 sub j s (Pair t1 t2 pos)   = Pair (sub j s t1) (sub j s t2) pos
 sub j s (Fix t pos)        = Fix (sub j s t) pos
-sub j s (Let ss t1 t2 pos) = Let ss (sub j s t1) (sub (j + 1) (shiftnl 1 0 s) t2) pos
+sub j s (Let p t1 t2 pos)  = Let p (sub j s t1) (sub (j + 1) (shiftnl 1 0 s) t2) pos
 sub j s (If t1 t2 t3 pos)  = If (sb t1) (sb t2) (sb t3) pos where sb = sub j s
 sub j s (Fst t pos)        = Fst (sub j s t) pos
 sub j s (Snd t pos)        = Snd (sub j s t) pos
