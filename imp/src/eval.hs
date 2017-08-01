@@ -25,6 +25,11 @@ shiftnl d c (Proj t s pos)    = Proj (shiftnl d c t) s pos
 shiftnl d c (Pair t1 t2 pos)  = Pair (shiftnl d c t1) (shiftnl d c t2) pos
 shiftnl d c (Fix t pos)       = Fix (shiftnl d c t) pos
 shiftnl d c (Let p t1 t2 pos) = Let p (shiftnl d c t1) (shiftnl d (c + l) t2) pos where l = countVars p
+shiftnl d c (Case t bs pos)   = 
+  let br bs = case bs of
+        [(p, t1)] -> [(p, shiftnl d (c + 1) t1)] where l = countVars p 
+        ((p, t1):bs') -> (p, shiftnl d (c + l) t1):br bs' where l = countVars p
+  in Case (shiftnl d c t) (br bs) pos
 shiftnl d c (If t1 t2 t3 pos) = If (sh t1) (sh t2) (sh t3) pos where sh = shiftnl d c
 shiftnl d c (Fst t pos)       = Fst (shiftnl d c t) pos
 shiftnl d c (Snd t pos)       = Snd (shiftnl d c t) pos
@@ -32,6 +37,10 @@ shiftnl d c (Succ t pos)      = Succ (shiftnl d c t) pos
 shiftnl d c (Pred t pos)      = Pred (shiftnl d c t) pos
 shiftnl d c (IsZero t pos)    = IsZero (shiftnl d c t) pos
 shiftnl _ _ t                 = t
+
+subBranches :: Int -> Term -> Branches -> Branches
+subBranches j s [(p, t)] = [(p, sub j s t)]
+subBranches j s ((p, t):bs) = (p, sub j s t):bs' where bs' = subBranches j s bs
 
 sub :: Int -> Term -> Term -> Term
 sub j s (Abs ss ty t pos)  = Abs ss ty t' pos where t' = sub (j + 1) (shiftnl 1 0 s) t
@@ -46,6 +55,7 @@ sub j s (Proj t ss pos)    = Proj (sub j s t) ss pos
 sub j s (Pair t1 t2 pos)   = Pair (sub j s t1) (sub j s t2) pos
 sub j s (Fix t pos)        = Fix (sub j s t) pos
 sub j s (Let p t1 t2 pos)  = Let p (sub j s t1) (sub (j + l) (shiftnl l 0 s) t2) pos where l = countVars p
+sub j s (Case t bs pos)    = Case (sub j s t) (subBranches j s bs) pos
 sub j s (If t1 t2 t3 pos)  = If (sb t1) (sb t2) (sb t3) pos where sb = sub j s
 sub j s (Fst t pos)        = Fst (sub j s t) pos
 sub j s (Snd t pos)        = Snd (sub j s t) pos
@@ -57,6 +67,18 @@ sub _ _ t                  = t
 subPats :: [(String, Term)] -> Term -> Term
 subPats [] t           = t
 subPats ((_, t):xs) te = subPats xs te' where te' = sub (length xs) t te
+
+evalBranches :: Term -> Branches -> SourcePos -> Term
+evalBranches t [(p, e)] pos =
+  let msubs = match p t
+  in case msubs of
+    Nothing   -> error $ "error in pattern matching at " ++ show pos
+    Just subs -> subPats subs e
+evalBranches t ((p, e):bs) pos =
+  let msubs = match p t
+  in case msubs of
+    Nothing   -> evalBranches t bs pos
+    Just subs -> subPats subs e
 
 eval1 :: Term -> Maybe Term
 eval1 (Abs s ty t pos)            = do
@@ -80,6 +102,12 @@ eval1 (Let p t1 t2 pos)            =
     else do
       t1' <- eval1 t1
       return $ Let p t1' t2 pos
+eval1 (Case t bs pos)              =
+  if isValue t
+    then return $ evalBranches t bs pos
+    else do
+      t' <- eval1 t
+      return $ Case t' bs pos
 eval1 (Record fs pos)              =
   let fields fs = case fs of
         []      -> Nothing

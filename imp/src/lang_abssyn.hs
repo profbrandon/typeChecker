@@ -2,6 +2,7 @@
 
 module Language.AbstractSyntax
   ( Term(..)
+  , Branches(..)
   , VContext(..)
   , nilmap
   , pushBinding
@@ -18,27 +19,30 @@ import TypeChecker.Utils
 import TypeChecker.Types
 import Language.Patterns
 
-data Term = Abs    String Type   Term SourcePos
-          | App    Term   Term        SourcePos
-          | Var    Int                SourcePos
-          | Let    Pat    Term   Term SourcePos
-          | Fix    Term               SourcePos
-          | Record Fields             SourcePos
-          | Proj   Term   String      SourcePos
-          | Pair   Term   Term        SourcePos
-          | Fst    Term               SourcePos
-          | Snd    Term               SourcePos
-          | If     Term   Term   Term SourcePos
-          | IsZero Term               SourcePos
-          | Succ   Term               SourcePos
-          | Pred   Term               SourcePos
-          | Tru                       SourcePos
-          | Fls                       SourcePos
-          | Zero                      SourcePos
-          | EUnit                     SourcePos
+data Term = Abs    String Type     Term SourcePos
+          | App    Term   Term          SourcePos
+          | Var    Int                  SourcePos
+          | Let    Pat    Term     Term SourcePos
+          | Case   Term   Branches      SourcePos
+          | Fix    Term                 SourcePos
+          | Record Fields               SourcePos
+          | Proj   Term   String        SourcePos
+          | Pair   Term   Term          SourcePos
+          | Fst    Term                 SourcePos
+          | Snd    Term                 SourcePos
+          | If     Term   Term     Term SourcePos
+          | IsZero Term                 SourcePos
+          | Succ   Term                 SourcePos
+          | Pred   Term                 SourcePos
+          | Tru                         SourcePos
+          | Fls                         SourcePos
+          | Zero                        SourcePos
+          | EUnit                       SourcePos
           deriving Eq
 
 type Fields = [(String, Term)]
+
+type Branches = [(Pat, Term)]
 
 type VContext = Function Int (String, Type)
 
@@ -86,6 +90,10 @@ showFields _   [] = " "
 showFields ctx [f]    = fst f ++ " = " ++ showTerm ctx (snd f)
 showFields ctx (f:fs) = fst f ++ " = " ++ showTerm ctx (snd f) ++ "," ++ showFields ctx fs
 
+showBranches :: VContext -> Branches -> String
+showBranches ctx [(p, t)] = show p ++ " -> " ++ showTerm ctx t  
+showBranches ctx ((p, t):bs)   = show p ++ " -> " ++ showTerm ctx t ++ "; " ++ showBranches ctx bs
+
 showTerm :: VContext -> Term -> String
 showTerm _   (Tru _)         = "True"
 showTerm _   (Fls _)         = "False"
@@ -114,3 +122,4 @@ showTerm ctx (Var i _)       =
   case ctx i of
     Nothing     -> "(Var " ++ show i ++ ")"
     Just (s, _) -> s
+showTerm ctx (Case t bs _)   = "case " ++ showTerm ctx t ++ " of " ++ showBranches ctx bs 

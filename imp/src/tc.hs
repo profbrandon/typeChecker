@@ -28,6 +28,7 @@ import Language.AbstractSyntax
 
 data Error = ParamTypeMismatch    Type Type   SourcePos
            | IfBranchMismatch     Type Type   SourcePos
+           | CaseBranchMismatch   Type Type   SourcePos
            | ProjectionMismatch   Type String SourcePos
            | ExpectedArrow        Type        SourcePos
            | ExpectedBoolGuard    Type        SourcePos
@@ -46,6 +47,7 @@ instance Show Error where
 showError :: Error -> String
 showError (ParamTypeMismatch t1 t2 pos) = "parameter type mismatch. Expected type " ++ show t1 ++ ", recieved type " ++ show t2 ++ " at " ++ show pos
 showError (IfBranchMismatch t1 t2 pos)  = "type mismatch in branches of conditional. Recieved types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
+showError (CaseBranchMismatch t1 t2 pos) = "type mismatch in branches of case expression. Recieved types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
 showError (ProjectionMismatch t s pos)  = "type mismatch in projection.  Recieved field " ++ s ++ ", expected a member of " ++ show t ++ " at " ++ show pos
 showError (ExpectedArrow t pos)         = "expected arrow type, recieved type " ++ show t ++ " at " ++ show pos
 showError (ExpectedBoolGuard t pos)     = "expected argument of type Bool to guard of conditional, recieved type " ++ show t ++ " at " ++ show pos
@@ -61,6 +63,27 @@ showError (UnboundVar pos)              = "unbound variable at " ++ show pos
 
 
 -- Typing
+
+branches :: TContext -> VContext -> SourcePos -> Type -> Branches -> Either Error Type
+branches tctx vctx pos ty [(p, t)] =
+  case tmatch p ty of
+    Nothing   -> Left $ PatternError pos
+    Just subs -> 
+      let vctx' = pushAllBindings vctx subs
+      in typeof0 tctx vctx' t
+branches tctx vctx pos ty ((p, t):bs) =
+  case tmatch p ty of
+    Nothing -> Left $ PatternError pos
+    Just subs ->
+      let vctx' = pushAllBindings vctx subs
+      in do
+        ty1 <- typeof0 tctx vctx' t
+        ty2 <- branches tctx vctx pos ty bs
+        if ty1 !> ty2
+          then return ty2
+          else if ty2 !> ty1
+            then return ty1
+            else Left $ CaseBranchMismatch ty1 ty2 pos
 
 typeof :: Term -> Either Error Type
 typeof = typeof0 nilmap nilmap
@@ -97,6 +120,10 @@ typeof0 tctx vctx (Let p t1 t2 pos)  = do
       let tctx' = addAllBindings (fst $ separate ty1) tctx
           vctx' = pushAllBindings vctx subs
       typeof0 tctx' vctx' t2
+typeof0 tctx vctx (Case t bs pos)  = do
+  ty <- typeof0 tctx vctx t
+  let tctx' = addAllBindings (fst $ separate ty) tctx
+  branches tctx' vctx pos ty bs
 typeof0 tctx vctx (Record fs _)    =
   let fields fs = case fs of
         []            -> return []

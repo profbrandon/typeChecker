@@ -39,9 +39,27 @@ term vctx = do
     <|> (try $ prd vctx)
     <|> (try $ lambda vctx)
     <|> (try $ letin vctx)
+    <|> (try $ ccase vctx)
     <|> (try $ cond vctx)
     <|> (try $ var vctx)
   proj t0 vctx
+
+ccase :: VContext -> Parser Term
+ccase vctx = do
+  pos <- getPosition
+  string "case"; white
+  e <- expr vctx; string "of"; white
+  bs <- sepBy1 (branch vctx) (do char ';'; white)
+  return $ Case e bs pos
+
+branch :: VContext -> Parser (Pat, Term)
+branch vctx = do
+  p <- pat; white
+  string "->"; white
+  let vctx' = addPatterns vctx p
+  e <- expr vctx'
+  return (p, e)
+  
 
 proj :: Term -> VContext -> Parser Term
 proj t vctx = do
