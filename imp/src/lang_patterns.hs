@@ -9,6 +9,7 @@ data Pat = PVar String
          | PRec [(String, Pat)]
          | PTru
          | PFls
+         | PWild
          deriving Eq
 
 instance Show Pat where
@@ -23,6 +24,7 @@ showPat :: Pat -> String
 showPat (PVar s)      = s
 showPat PTru          = "True"
 showPat PFls          = "False"
+showPat PWild         = "_"
 showPat (PPair p1 p2) = "(" ++ show p1 ++ "," ++ show p2 ++ ")"
 showPat (PRec ps)     = "{" ++ showFields ps ++ "}"
 

@@ -261,20 +261,26 @@ tfield = do
 -- Parsers for Patterns
 
 pat :: Parser Pat
-pat = (try ptru)
+pat = (try pwild)
+  <|> (try ptru)
   <|> (try pfls)
   <|> (try pvar) 
   <|> (try ppair)
   <|> (try prec)
 
+pwild :: Parser Pat
+pwild = do
+  char '_'; white
+  return PWild
+
 ptru :: Parser Pat
 ptru = do
-  string "True"
+  string "True"; white
   return PTru
 
 pfls :: Parser Pat
 pfls = do
-  string "False"
+  string "False"; white
   return PFls
 
 pvar :: Parser Pat

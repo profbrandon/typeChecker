@@ -31,4 +31,5 @@ tmatch (PRec ps) (Type (TRec ts))
   | otherwise = Nothing
 tmatch PTru (Type Bool) = return []
 tmatch PFls (Type Bool) = return []
+tmatch PWild _ = return []
 tmatch _ _ = Nothing

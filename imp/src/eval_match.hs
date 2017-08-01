@@ -27,4 +27,5 @@ match (PRec ps)     (Record fs _)
   | otherwise = Nothing
 match PTru (Tru _) = return []
 match PFls (Fls _) = return []
+match PWild _      = return []
 match _             _            = Nothing
