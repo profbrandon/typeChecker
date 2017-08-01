@@ -261,12 +261,28 @@ tfield = do
 -- Parsers for Patterns
 
 pat :: Parser Pat
-pat = (try pwild)
+pat = (try punit)
+  <|> (try pnum)
+  <|> (try pwild)
   <|> (try ptru)
   <|> (try pfls)
   <|> (try pvar) 
   <|> (try ppair)
   <|> (try prec)
+
+pnum :: Parser Pat
+pnum = do
+  s <- many1 digit
+  return $ pnum0 (read s :: Int)
+
+pnum0 :: Int -> Pat
+pnum0 0 = PZero
+pnum0 n = PSucc p where p = pnum0 (n - 1) 
+
+punit :: Parser Pat
+punit = do
+  char '('; white; char ')'; white
+  return PUnit
 
 pwild :: Parser Pat
 pwild = do

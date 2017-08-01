@@ -32,4 +32,7 @@ tmatch (PRec ps) (Type (TRec ts))
 tmatch PTru (Type Bool) = return []
 tmatch PFls (Type Bool) = return []
 tmatch PWild _ = return []
+tmatch PUnit (Type Unit) = return []
+tmatch PZero (Type Nat) = return []
+tmatch (PSucc p) (Type Nat) = tmatch p (Type Nat)
 tmatch _ _ = Nothing

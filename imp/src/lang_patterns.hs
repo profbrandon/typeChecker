@@ -10,6 +10,9 @@ data Pat = PVar String
          | PTru
          | PFls
          | PWild
+         | PUnit
+         | PZero
+         | PSucc Pat
          deriving Eq
 
 instance Show Pat where
@@ -20,11 +23,19 @@ showFields []          = ""
 showFields [(s, p)]    = show s ++ " = " ++ show p
 showFields ((s, p):xs) = show s ++ " = " ++ show p ++ ", " ++ showFields xs
 
+toInt :: Pat -> Int
+toInt PZero     = 0
+toInt (PSucc p) = 1 + (toInt p)
+toInt _         = error "Non-numeric argument supplied to function 'toInt'"
+
 showPat :: Pat -> String
 showPat (PVar s)      = s
 showPat PTru          = "True"
 showPat PFls          = "False"
 showPat PWild         = "_"
+showPat PUnit         = "()"
+showPat PZero         = "0" 
+showPat (PSucc p)     = show $ 1 + toInt p
 showPat (PPair p1 p2) = "(" ++ show p1 ++ "," ++ show p2 ++ ")"
 showPat (PRec ps)     = "{" ++ showFields ps ++ "}"
 

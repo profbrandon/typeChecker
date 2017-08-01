@@ -28,4 +28,7 @@ match (PRec ps)     (Record fs _)
 match PTru (Tru _) = return []
 match PFls (Fls _) = return []
 match PWild _      = return []
+match PUnit (EUnit _) = return []
+match PZero (Zero _)  = return []
+match (PSucc p) (Succ e _) = match p e 
 match _             _            = Nothing
