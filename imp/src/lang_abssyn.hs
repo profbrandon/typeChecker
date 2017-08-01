@@ -63,6 +63,7 @@ addPatterns :: VContext -> Pat -> VContext
 addPatterns ctx (PVar s)    = pushBinding ctx (s, Type $ TName "")
 addPatterns ctx (PPair a b) = addPatterns ctx' b where ctx' = addPatterns ctx a
 addPatterns ctx (PRec ps)   = addRecPat ctx ps
+addPatterns ctx _        = ctx 
 
 isValue :: Term -> Bool
 isValue (Tru _)        = True

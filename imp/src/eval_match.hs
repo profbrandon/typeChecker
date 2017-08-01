@@ -25,4 +25,6 @@ match (PPair p1 p2) (Pair t1 t2 _) = do
 match (PRec ps)     (Record fs _)
   | length ps == length fs = matchRec ps fs
   | otherwise = Nothing
+match PTru (Tru _) = return []
+match PFls (Fls _) = return []
 match _             _            = Nothing

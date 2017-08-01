@@ -29,4 +29,6 @@ tmatch (PPair p1 p2) t =
 tmatch (PRec ps) (Type (TRec ts))
   | length ps == length ts = matchRec ps ts
   | otherwise = Nothing
+tmatch PTru (Type Bool) = return []
+tmatch PFls (Type Bool) = return []
 tmatch _ _ = Nothing
