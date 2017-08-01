@@ -8,7 +8,6 @@ module Language.AbstractSyntax
   , pushAllBindings
   , isValue
   , addPatterns
-  , union
   )
 where
 
@@ -66,15 +65,15 @@ addPatterns ctx (PPair a b) = addPatterns ctx' b where ctx' = addPatterns ctx a
 addPatterns ctx (PRec ps)   = addRecPat ctx ps
 
 isValue :: Term -> Bool
-isValue (Tru _)       = True
-isValue (Fls _)       = True
-isValue (Zero _)      = True
-isValue (EUnit _)     = True
-isValue (Abs _ _ _ _) = True
-isValue (Record _ _)  = True
-isValue (Pair _ _ _)  = True
-isValue (Succ t _)    = isValue t
-isValue _             = False
+isValue (Tru _)        = True
+isValue (Fls _)        = True
+isValue (Zero _)       = True
+isValue (EUnit _)      = True
+isValue (Abs _ _ _ _)  = True
+isValue (Record _ _)   = True
+isValue (Pair _ _ _)   = True
+isValue (Succ t _)     = isValue t
+isValue _              = False
 
 toInt :: Term -> Int
 toInt (Zero _)   = 0
@@ -114,12 +113,3 @@ showTerm ctx (Var i _)       =
   case ctx i of
     Nothing     -> "(Var " ++ show i ++ ")"
     Just (s, _) -> s
-
-union :: [(String, Term)] -> [(String, Term)] -> [(String, Term)]
-union [] []       = []
-union s  []       = s
-union [] s        = s
-union ((s1, t):xs) ys =
-  case s1 `lookup` ys of
-    Nothing -> (s1, t):back where back = xs `union` ys
-    Just p  -> (s1, t):back where back = (s1, p) `delete` ys
