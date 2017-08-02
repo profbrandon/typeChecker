@@ -9,6 +9,7 @@ where
 import System.Console.Haskeline
 import System.Environment
 import System.Directory
+import Data.List (isPrefixOf)
 
 import Parser
 import Evaluator
@@ -40,15 +41,18 @@ main = do
         Just "quit" -> return ()
         Just txt    ->
           case txt of
-            ":exit"         -> return ()
-            ':':'t':'y':'p':'e':'o':'f':txt' ->
-              case computeVal (pre ++ ' ':txt') of
-                Left e      -> do outputStrLn e; loop pre
-                Right (t,v) -> do outputStrLn $ show t; loop pre
-            _       ->
+            ':':txt' ->
+              case () of _
+                           | "exit"   `isPrefixOf` txt' -> do return ()
+                           | "typeof" `isPrefixOf` txt' ->
+                             case computeVal (pre ++ ' ':(drop 6 txt')) of
+                               Left e      -> do outputStrLn e; loop pre
+                               Right (t,_) -> do outputStrLn $ show t; loop pre
+                           | otherwise -> do outputStrLn "Error:  unrecognized command"
+            _        ->
               case computeVal (pre ++ ' ':txt) of
                 Left e      -> do outputStrLn e; loop pre
-                Right (t,v) -> do outputStrLn $ show v; loop pre
+                Right (_,v) -> do outputStrLn $ show v; loop pre
 
 getFiles :: [String] -> IO String
 getFiles [] = return ""

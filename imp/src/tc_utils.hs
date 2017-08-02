@@ -1,4 +1,4 @@
--- Utilities for the testtc.hs Type Checker
+-- Utilities for the Type Checker
 
 module TypeChecker.Utils
   ( Function(..)

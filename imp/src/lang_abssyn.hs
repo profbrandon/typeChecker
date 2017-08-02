@@ -1,4 +1,4 @@
--- Abstract Syntax Module for the testtc.hs Type Checker
+-- Module for the abstract syntax
 
 module Language.AbstractSyntax
   ( Term(..)
@@ -49,6 +49,7 @@ type VContext = Function Int (String, Type)
 instance Show Term where
   show = showTerm nilmap
 
+-- Shift all bindings by +1
 shiftBindings :: VContext -> VContext
 shiftBindings ctx = \n -> ctx $ n - 1
 
@@ -75,8 +76,9 @@ isValue (Fls _)        = True
 isValue (Zero _)       = True
 isValue (EUnit _)      = True
 isValue (Abs _ _ _ _)  = True
-isValue (Record _ _)   = True
-isValue (Pair _ _ _)   = True
+isValue (Let _ _ _ _)  = True
+isValue (Record fs _)  = and $ map isValue (snd $ unzip fs)
+isValue (Pair t1 t2 _) = isValue t1 && isValue t2
 isValue (Succ t _)     = isValue t
 isValue _              = False
 

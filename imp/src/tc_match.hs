@@ -17,6 +17,7 @@ matchRec ((s1, p):ps) ((s2, t):ts) =
       return $ subs1 ++ subs2
     else Nothing
 
+-- Performs pattern matching against types
 tmatch :: Pat -> Type -> Maybe [(String, Type)]
 tmatch (PVar s) t = return [(s, t)]
 tmatch (PPair p1 p2) t = 

@@ -16,31 +16,27 @@ let Math = fix \math :
     
 { zero = \n : Nat. iszero n
 
-, one = \n : Nat. if iszero n then False else iszero (pred n)
+, one = \n : Nat. case n of 1 -> True;
+		            _ -> False
 
-, even = \n : Nat.
-           if iszero n
-	     then True
-	     else math.odd (pred n)
+, even = \n : Nat. case n of 0 -> True;
+	                     _ -> math.odd (pred n)
 
-, odd = \n : Nat.
-          if iszero n
-	    then False
-	    else math.even (pred n)
+, odd = \n : Nat. case n of 0 -> False;
+                            _ -> math.even (pred n)
 
 , equals = \a : Nat. \b : Nat.
-             if iszero a
-	       then iszero b
-	       else if iszero b
-	         then False
-		 else math.equals (pred a) (pred b)
+             case (a,b) of
+	       (0,0) -> True;
+	       (_,0) -> False;
+	       (0,_) -> False;
+	       _     -> math.equals (pred a) (pred b)
 
 , add = \a : Nat. \b : Nat.
-          if iszero a
-	    then b
-	    else if iszero b
-	      then a
-	      else math.add (pred a) (succ b)
+          case (a,b) of
+	    (0,_) -> b;
+	    (_,0) -> a;
+	    _     -> math.add (pred a) (succ b)
 
 , sub = \a : Nat. \b : Nat.
           if iszero a
@@ -57,12 +53,13 @@ let Math = fix \math :
 	       else math.add (math.mult (pred a) b) b
 
 , div = \a : Nat. \b : Nat.
-          let div0 = fix \d : Nat -> Nat -> Nat -> Nat. \acc : Nat. \aa : Nat. \bb : Nat.
-	        if iszero aa
-		  then acc
-		  else if iszero bb
-		    then 0
-		    else d (succ acc) (math.sub aa bb) bb
+          let div0 = fix \d : Nat -> Nat -> Nat -> Nat.
+	       \acc : Nat. \aa : Nat. \bb : Nat.
+	          if iszero aa
+		    then acc
+		    else if iszero bb
+		      then 0
+		      else d (succ acc) (math.sub aa bb) bb
 	  in div0 0 a b
 
 , fac = \n : Nat.
@@ -71,13 +68,11 @@ let Math = fix \math :
 	    else math.mult n (math.fac (pred n))
 
 , fib = \n : Nat.
-          if iszero n
-	    then 0
-	    else if math.one n
-	      then 1
-	      else
-	        let f1 = math.fib (pred n) in
-	        let f2 = math.fib (pred (pred n))
+          case n of
+	    0 -> 0;
+	    1 -> 1;
+	    _ -> let f1 = math.fib (pred n)
+	      in let f2 = math.fib (math.sub n 2)
 		in math.add f1 f2
 
 , square = \n : Nat. math.mult n n

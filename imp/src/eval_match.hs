@@ -6,6 +6,7 @@ where
 import Language.Patterns
 import Language.AbstractSyntax
 
+-- Pattern matches record fields
 matchRec :: [(String, Pat)] -> [(String, Term)] -> Maybe [(String, Term)]
 matchRec [] []                     = return []
 matchRec ((s1, p):ps) ((s2, t):fs) = 
@@ -16,6 +17,8 @@ matchRec ((s1, p):ps) ((s2, t):fs) =
       return $ subs1 ++ subs2
     else Nothing
 
+-- Pattern matches expressions, returning a list of variable substitutions on success
+  -- e.g., match (a,b) (1,2) = [("a",1),("b",2)]
 match :: Pat -> Term -> Maybe [(String, Term)]
 match (PVar s)      t              = return [(s, t)]
 match (PPair p1 p2) (Pair t1 t2 _) = do

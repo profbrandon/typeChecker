@@ -3,6 +3,7 @@ let Fun = fix \fun :
   , curry   : ((a, b) -> c) -> a -> b -> c
   , uncurry : (a -> b -> c) -> (a, b) -> c
   , swap    : (a -> b -> c) -> b -> a -> c
+  , id      : a -> a
   }.
 
 { compose = \g : b -> c. \f : a -> b. \x : a. g (f x)
@@ -12,6 +13,8 @@ let Fun = fix \fun :
 , uncurry = \f : a -> b -> c. \p : (a, b). f (fst p) (snd p)
 
 , swap = \f : a -> b -> c. \b : b. \a : a. f a b
+
+, id = \x : a. x
 }
 
 in

@@ -1,9 +1,11 @@
+-- Module for the abstract pattern syntax
 
 module Language.Patterns 
   ( Pat(..)
   , countVars)
 where
 
+-- Patterns
 data Pat = PVar String
          | PPair Pat Pat
          | PRec [(String, Pat)]

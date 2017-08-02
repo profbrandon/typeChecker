@@ -1,5 +1,3 @@
--- Types for the testtc.hs Type Checker
-
 module TypeChecker.Types
   ( Type (..)
   , TExpr (..)

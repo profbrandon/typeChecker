@@ -12,6 +12,7 @@ import Text.Parsec.Pos
 
 -- Evaluation
 
+-- Shift nameless terms by "d" above cutoff "c" in the term provided
 shiftnl :: Int -> Int -> Term -> Term
 shiftnl d c (Abs s ty t pos)  = Abs s ty (shiftnl d (c + 1) t) pos
 shiftnl d c (App t1 t2 pos)   = App (shiftnl d c t1) (shiftnl d c t2) pos
@@ -38,6 +39,7 @@ shiftnl d c (Pred t pos)      = Pred (shiftnl d c t) pos
 shiftnl d c (IsZero t pos)    = IsZero (shiftnl d c t) pos
 shiftnl _ _ t                 = t
 
+-- Preforms variable substitution in branches
 subBranches :: Int -> Term -> Branches -> Branches
 subBranches j s [(p, t)] = [(p, sub j s t)]
 subBranches j s ((p, t):bs) = (p, sub j s t):bs' where bs' = subBranches j s bs
@@ -64,15 +66,17 @@ sub j s (Pred t pos)       = Pred (sub j s t) pos
 sub j s (IsZero t pos)     = IsZero (sub j s t) pos
 sub _ _ t                  = t
 
+-- Substitutes patterns
 subPats :: [(String, Term)] -> Term -> Term
 subPats [] t           = t
 subPats ((_, t):xs) te = subPats xs te' where te' = sub (length xs) t te
 
+-- Evaluates branches of case expressions
 evalBranches :: Term -> Branches -> SourcePos -> Term
 evalBranches t [(p, e)] pos =
   let msubs = match p t
   in case msubs of
-    Nothing   -> error $ "error in pattern matching at " ++ show pos
+    Nothing   -> error $ "non-exhaustive patterns in case expression at " ++ show pos
     Just subs -> subPats subs e
 evalBranches t ((p, e):bs) pos =
   let msubs = match p t
@@ -84,12 +88,7 @@ eval1 :: Term -> Maybe Term
 eval1 (Abs s ty t pos)            = do
   t' <- eval1 t
   return $ Abs s ty t' pos
-eval1 (App (Abs s ty t11 pos1) t2 pos2) =
-  if isValue t2
-    then return $ shiftnl (-1) 0 $ sub 0 (shiftnl 1 0 t2) t11
-    else do
-      t2' <- eval1 t2
-      return $ App (Abs s ty t11 pos1) t2' pos2
+eval1 (App (Abs s ty t11 pos1) t2 pos2) = return $ shiftnl (-1) 0 $ sub 0 (shiftnl 1 0 t2) t11
 eval1 (App t1 t2 pos)              = do
   t1' <- eval1 t1
   return $ App t1' t2 pos
@@ -130,13 +129,17 @@ eval1 (Proj t s pos)               =
       t' <- eval1 t
       return $ Proj t' s pos
 eval1 (Pair t1 t2 pos)             = do
-  t1' <- eval1 t1
-  t2' <- eval1 t2
-  return $ Pair t1' t2' pos
+  if isValue t1
+    then do
+      t2' <- eval1 t2
+      return $ Pair t1 t2' pos
+    else do
+      t1' <- eval1 t1
+      return $ Pair t1' t2 pos
 eval1 (Fix (Abs s ty t pos1) pos2) = return $ shiftnl (-1) 0 $ sub 0 (shiftnl 1 0 $ Fix (Abs s ty t pos1) pos2) t
 eval1 (Fix t pos)                  = do
   t' <- eval1 t
-  return $ Fix t pos
+  return $ Fix t' pos
 eval1 (If (Tru _) t2 t3 _)        = Just t2
 eval1 (If (Fls _) t2 t3 _)        = Just t3
 eval1 (If t1 t2 t3 pos)           = do

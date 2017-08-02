@@ -64,6 +64,7 @@ showError (UnboundVar pos)              = "unbound variable at " ++ show pos
 
 -- Typing
 
+-- Handles the typing of case expression branches
 branches :: TContext -> VContext -> SourcePos -> Type -> Branches -> Either Error Type
 branches tctx vctx pos ty [(p, t)] =
   case tmatch p ty of

@@ -1,0 +1,21 @@
+let Pair = fix \pair :
+  { liftl : (a -> b) -> (a, c) -> (b, c)
+  , liftr : (a -> b) -> (c, a) -> (c, b)
+  , lift  : (a -> b) -> (c -> d) -> (a, c) -> (b, d)
+  , swap  : (a, b) -> (b, a)
+  }.
+
+{ liftl = \f : a -> b. \p : (a, c).
+            let (a, c) = p in (f a, c)
+
+, liftr = \f : a -> b. \p : (c, a).
+            let (c, a) = p in (c, f a)
+
+, lift = \g : a -> b. \f : c -> d. \p : (a, c).
+           let (a, c) = p in (g a, f c)
+
+, swap = \p : (a, b).
+           let (a, b) = p in (b, a)
+}
+
+in

@@ -368,6 +368,7 @@ identifier = do
   s <- many alphaNum
   return $ a:s
 
+-- Finds a binding in the present context
 findBind :: VContext -> String -> Maybe (Int, String, Type)
 findBind = findBind0 0
 
