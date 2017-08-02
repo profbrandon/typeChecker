@@ -1,17 +1,18 @@
 let Math = fix \math :
-  { zero   : Nat -> Bool
-  , one    : Nat -> Bool
-  , even   : Nat -> Bool
-  , odd    : Nat -> Bool
-  , equals : Nat -> Nat -> Bool
-  , add    : Nat -> Nat -> Nat
-  , sub    : Nat -> Nat -> Nat
-  , mult   : Nat -> Nat -> Nat
-  , div    : Nat -> Nat -> Nat
-  , fac    : Nat -> Nat
-  , fib    : Nat -> Nat
-  , square : Nat -> Nat
-  , exp    : Nat -> Nat -> Nat
+  { zero     : Nat -> Bool
+  , one      : Nat -> Bool
+  , even     : Nat -> Bool
+  , odd      : Nat -> Bool
+  , equals   : Nat -> Nat -> Bool
+  , lessThan : Nat -> Nat -> Bool
+  , add      : Nat -> Nat -> Nat
+  , sub      : Nat -> Nat -> Nat
+  , mult     : Nat -> Nat -> Nat
+  , div      : Nat -> Nat -> Nat
+  , fac      : Nat -> Nat
+  , fib      : Nat -> Nat
+  , square   : Nat -> Nat
+  , exp      : Nat -> Nat -> Nat
   }.
     
 { zero = \n : Nat. iszero n
@@ -31,6 +32,12 @@ let Math = fix \math :
 	       (_,0) -> False;
 	       (0,_) -> False;
 	       _     -> math.equals (pred a) (pred b)
+
+, lessThan = \a : Nat. \b : Nat.
+               case (a,b) of
+	         (_,0) -> False;
+	         (0,_) -> True;
+		 _     -> math.lessThan (pred a) (pred b)
 
 , add = \a : Nat. \b : Nat.
           case (a,b) of
@@ -53,14 +60,14 @@ let Math = fix \math :
 	       else math.add (math.mult (pred a) b) b
 
 , div = \a : Nat. \b : Nat.
-          let div0 = fix \d : Nat -> Nat -> Nat -> Nat.
-	       \acc : Nat. \aa : Nat. \bb : Nat.
-	          if iszero aa
-		    then acc
-		    else if iszero bb
-		      then 0
-		      else d (succ acc) (math.sub aa bb) bb
-	  in div0 0 a b
+          if iszero b
+	    then 0
+	    else let div0 = fix \d : Nat -> Nat -> Nat -> Nat.
+	           \acc : Nat. \aa : Nat. \bb : Nat.
+	             if math.lessThan aa bb
+		       then acc
+		       else d (succ acc) (math.sub aa bb) bb
+	         in div0 0 a b
 
 , fac = \n : Nat.
           if iszero n
