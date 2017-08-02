@@ -1,7 +1,8 @@
 let Sum = fix \sum :
   { liftl : (a -> b) -> (a|c) -> (b|c)
   , leftr : (a -> b) -> (c|a) -> (c|b)
-  , lift  : (a -> b) -> (c -> d) -> (a|c) -> (b|d) 
+  , lift  : (a -> b) -> (c -> d) -> (a|c) -> (b|d)
+  , swap  : (a|b) -> (b|a)
   }.
 
 { liftl = \f : a -> b. \s : (a|c).
@@ -18,6 +19,10 @@ let Sum = fix \sum :
            case s of
 	     Left  a -> Left (g a) : (b|d);
 	     Right c -> Right (f c) : (b|d)
+
+, swap = \p : (a|b). case p of
+                       Left a  -> Right a : (b|a);
+		       Right b -> Left b : (b|a)
 }
 
 in
