@@ -34,6 +34,8 @@ data Term = Abs    String Type     Term SourcePos
           | IsZero Term                 SourcePos
           | Succ   Term                 SourcePos
           | Pred   Term                 SourcePos
+          | ELeft  Term   Type          SourcePos
+          | ERight Term   Type          SourcePos
           | Tru                         SourcePos
           | Fls                         SourcePos
           | Zero                        SourcePos
@@ -68,13 +70,18 @@ addPatterns :: VContext -> Pat -> VContext
 addPatterns ctx (PVar s)    = pushBinding ctx (s, Type $ TName "")
 addPatterns ctx (PPair a b) = addPatterns ctx' b where ctx' = addPatterns ctx a
 addPatterns ctx (PRec ps)   = addRecPat ctx ps
-addPatterns ctx _        = ctx 
+addPatterns ctx (PSucc p)   = addPatterns ctx p
+addPatterns ctx (PLeft p)   = addPatterns ctx p
+addPatterns ctx (PRight p)  = addPatterns ctx p
+addPatterns ctx _           = ctx 
 
 isValue :: Term -> Bool
 isValue (Tru _)        = True
 isValue (Fls _)        = True
 isValue (Zero _)       = True
 isValue (EUnit _)      = True
+isValue (ELeft t _ _)  = isValue t
+isValue (ERight t _ _) = isValue t
 isValue (Abs _ _ _ _)  = True
 isValue (Let _ _ _ _)  = True
 isValue (Record fs _)  = and $ map isValue (snd $ unzip fs)
@@ -101,6 +108,8 @@ showTerm _   (Tru _)         = "True"
 showTerm _   (Fls _)         = "False"
 showTerm _   (Zero _)        = "0"
 showTerm _   (EUnit _)       = "()"
+showTerm ctx (ELeft t ty _)  = "Left " ++ showTerm ctx t ++ " : " ++ show ty
+showTerm ctx (ERight t ty _) = "Right " ++ showTerm ctx t ++ " : " ++ show ty
 showTerm ctx (Record fs _)   = "{" ++ showFields ctx fs ++ "}"
 showTerm ctx (Proj t s _)    = showTerm ctx t ++ "." ++ s
 showTerm ctx (Pair t1 t2 _)  = "(" ++ showTerm ctx t1 ++ "," ++ showTerm ctx t2 ++ ")"

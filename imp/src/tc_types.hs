@@ -22,6 +22,7 @@ data TExpr = Arrow TExpr  TExpr
            | Bool
            | Nat
            | Unit
+           | Sum   TExpr  TExpr
            | TPair TExpr  TExpr
            | TRec  Fields
            deriving Eq
@@ -59,6 +60,7 @@ showTExpr (TVar n)    = n
 showTExpr (TName n)   = n
 showTExpr (TRec fs)   = "{" ++ showFields fs ++ "}"
 showTExpr (TPair a b) = "(" ++ show a ++ "," ++ show b ++ ")"
+showTExpr (Sum a b)   = "(" ++ show a ++ "|" ++ show b ++ ")"
 showTExpr (Arrow a b) =
   case a of
     Arrow _ _ -> "(" ++ show a ++ ") -> " ++ show b

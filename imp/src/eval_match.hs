@@ -26,12 +26,14 @@ match (PPair p1 p2) (Pair t1 t2 _) = do
   subs2 <- match p2 t2
   return $ subs1 ++ subs2
 match (PRec ps)     (Record fs _)
-  | length ps == length fs = matchRec ps fs
-  | otherwise = Nothing
-match PTru (Tru _) = return []
-match PFls (Fls _) = return []
-match PWild _      = return []
-match PUnit (EUnit _) = return []
-match PZero (Zero _)  = return []
-match (PSucc p) (Succ e _) = match p e 
-match _             _            = Nothing
+  | length ps == length fs         = matchRec ps fs
+  | otherwise                      = Nothing
+match PTru          (Tru _)        = return []
+match PFls          (Fls _)        = return []
+match PWild         _              = return []
+match PUnit         (EUnit _)      = return []
+match PZero         (Zero _)       = return []
+match (PSucc p)     (Succ e _)     = match p e
+match (PLeft p)     (ELeft e _ _)  = match p e
+match (PRight p)    (ERight e _ _) = match p e
+match _             _              = Nothing

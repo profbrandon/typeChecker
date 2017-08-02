@@ -37,6 +37,8 @@ term vctx = do
     <|> (try $ iszero vctx)
     <|> (try $ suc vctx)
     <|> (try $ prd vctx)
+    <|> (try $ eleft vctx)
+    <|> (try $ eright vctx)
     <|> (try $ lambda vctx)
     <|> (try $ letin vctx)
     <|> (try $ ccase vctx)
@@ -59,7 +61,24 @@ branch vctx = do
   let vctx' = addPatterns vctx p
   e <- expr vctx'
   return (p, e)
-  
+
+eleft :: VContext -> Parser Term
+eleft vctx = do
+  pos <- getPosition
+  string "Left"; white
+  e <- expr vctx
+  char ':'; white
+  t <- typ; white
+  return $ ELeft e t pos
+
+eright :: VContext -> Parser Term
+eright vctx = do
+  pos <- getPosition
+  string "Right"; white
+  e <- expr vctx
+  char ':'; white
+  t <- typ; white
+  return $ ERight e t pos
 
 proj :: Term -> VContext -> Parser Term
 proj t vctx = do
@@ -210,6 +229,7 @@ texpr = do
     <|> (try nat)
     <|> (try unit)
     <|> (try tpair)
+    <|> (try tsum)
     <|> (try $ do char '('; white; Type t <- texpr; char ')'; white; return t)
     <|> (try trec)
     <|> (try tvar)
@@ -221,6 +241,15 @@ arrow :: TExpr -> Parser TExpr
 arrow t1 = do
   choice [ do string "->"; white; Type t2 <- texpr; return $ Arrow t1 t2
          , return t1]
+
+tsum :: Parser TExpr
+tsum = do
+  char '('; white
+  Type t1 <- texpr
+  char '|'; white
+  Type t2 <- texpr
+  char ')'; white
+  return $ Sum t1 t2
 
 tvar :: Parser TExpr
 tvar = do 
@@ -280,17 +309,32 @@ tfield = do
 
 pat :: Parser Pat
 pat = (try punit)
+  <|> (try $ do char '('; white; p <- pat; char ')'; white; return p)
   <|> (try pnum)
   <|> (try pwild)
   <|> (try ptru)
   <|> (try pfls)
+  <|> (try pleft)
+  <|> (try pright)
   <|> (try pvar) 
   <|> (try ppair)
   <|> (try prec)
 
+pleft :: Parser Pat
+pleft = do
+  string "Left"; white
+  p <- pat;
+  return $ PLeft p
+
+pright :: Parser Pat
+pright = do
+  string "Right"; white
+  p <- pat;
+  return $ PRight p
+
 pnum :: Parser Pat
 pnum = do
-  s <- many1 digit
+  s <- many1 digit; white
   return $ pnum0 (read s :: Int)
 
 pnum0 :: Int -> Pat

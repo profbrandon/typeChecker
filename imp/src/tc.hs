@@ -29,8 +29,10 @@ import Language.AbstractSyntax
 data Error = ParamTypeMismatch    Type Type   SourcePos
            | IfBranchMismatch     Type Type   SourcePos
            | CaseBranchMismatch   Type Type   SourcePos
+           | SumMismatch          Type Type   SourcePos
            | ProjectionMismatch   Type String SourcePos
            | ExpectedArrow        Type        SourcePos
+           | ExpectedSum          Type        SourcePos
            | ExpectedBoolGuard    Type        SourcePos
            | ExpectedPairtoFst    Type        SourcePos
            | ExpectedPairtoSnd    Type        SourcePos
@@ -45,11 +47,13 @@ instance Show Error where
   show = showError
 
 showError :: Error -> String
-showError (ParamTypeMismatch t1 t2 pos) = "parameter type mismatch. Expected type " ++ show t1 ++ ", recieved type " ++ show t2 ++ " at " ++ show pos
-showError (IfBranchMismatch t1 t2 pos)  = "type mismatch in branches of conditional. Recieved types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
+showError (ParamTypeMismatch t1 t2 pos)  = "parameter type mismatch. Expected type " ++ show t1 ++ ", recieved type " ++ show t2 ++ " at " ++ show pos
+showError (IfBranchMismatch t1 t2 pos)   = "type mismatch in branches of conditional. Recieved types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
 showError (CaseBranchMismatch t1 t2 pos) = "type mismatch in branches of case expression. Recieved types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
+showError (SumMismatch t1 t2 pos)        = "type mismatch in sum annotation.  Recieved type " ++ show t1 ++ ", expected " ++ show t2 ++ " at " ++ show pos
 showError (ProjectionMismatch t s pos)  = "type mismatch in projection.  Recieved field " ++ s ++ ", expected a member of " ++ show t ++ " at " ++ show pos
 showError (ExpectedArrow t pos)         = "expected arrow type, recieved type " ++ show t ++ " at " ++ show pos
+showError (ExpectedSum t pos)           = "expected sum type, recieved type " ++ show t ++ " at " ++ show pos
 showError (ExpectedBoolGuard t pos)     = "expected argument of type Bool to guard of conditional, recieved type " ++ show t ++ " at " ++ show pos
 showError (ExpectedPairtoFst t pos)     = "expected argument of type (a, b) to \'fst\' function, recieved type " ++ show t ++ " at " ++ show pos
 showError (ExpectedPairtoSnd t pos)     = "expected argument of type (a, b) to \'snd\' function, recieved type " ++ show t ++ " at " ++ show pos
@@ -194,6 +198,24 @@ typeof0 tctx vctx (IsZero t pos)     = do
   if ty == Type Nat 
     then return $ Type Bool 
     else Left $ ExpectedNattoIsZero ty pos
+typeof0 tctx vctx (ELeft t ty pos)   =
+  case separate ty of
+    (_, Sum a _) -> do
+      ty' <- typeof0 tctx vctx t
+      let a' = quantify' (Type a)
+      if ty' !> a'
+        then return ty
+        else Left $ SumMismatch ty' a' pos
+    _            -> Left $ ExpectedSum ty pos
+typeof0 tctx vctx (ERight t ty pos)  =
+  case separate ty of
+    (_, Sum _ b) -> do
+      ty' <- typeof0 tctx vctx t
+      let b' = quantify' (Type b)
+      if ty' !> b'
+        then return ty
+        else Left $ SumMismatch ty' b' pos
+    _            -> Left $ ExpectedSum ty pos
 typeof0 _    _    (Tru _)            = return $ Type Bool
 typeof0 _    _    (Fls _)            = return $ Type Bool
 typeof0 _    _    (Zero _)           = return $ Type Nat
