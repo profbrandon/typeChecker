@@ -1,0 +1,23 @@
+let Sum = fix \sum :
+  { liftl : (a -> b) -> (a|c) -> (b|c)
+  , leftr : (a -> b) -> (c|a) -> (c|b)
+  , lift  : (a -> b) -> (c -> d) -> (a|c) -> (b|d) 
+  }.
+
+{ liftl = \f : a -> b. \s : (a|c).
+            case s of
+	      Left  a -> Left (f a) : (b|c);
+	      Right c -> Right c : (b|c)
+
+, liftr = \f : a -> b. \s : (c|a).
+            case s of
+	      Right a -> Right (f a) : (c|b);
+	      Left  c -> Left c : (c|b)
+
+, lift = \g : a -> b. \f : c -> d. \s : (a|c).
+           case s of
+	     Left  a -> Left (g a) : (b|d);
+	     Right c -> Right (f c) : (b|d)
+}
+
+in

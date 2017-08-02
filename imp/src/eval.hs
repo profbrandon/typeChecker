@@ -28,7 +28,7 @@ shiftnl d c (Fix t pos)       = Fix (shiftnl d c t) pos
 shiftnl d c (Let p t1 t2 pos) = Let p (shiftnl d c t1) (shiftnl d (c + l) t2) pos where l = countVars p
 shiftnl d c (Case t bs pos)   = 
   let br bs = case bs of
-        [(p, t1)] -> [(p, shiftnl d (c + 1) t1)] where l = countVars p 
+        [(p, t1)] -> [(p, shiftnl d (c + l) t1)] where l = countVars p 
         ((p, t1):bs') -> (p, shiftnl d (c + l) t1):br bs' where l = countVars p
   in Case (shiftnl d c t) (br bs) pos
 shiftnl d c (If t1 t2 t3 pos) = If (sh t1) (sh t2) (sh t3) pos where sh = shiftnl d c
@@ -36,35 +36,39 @@ shiftnl d c (Fst t pos)       = Fst (shiftnl d c t) pos
 shiftnl d c (Snd t pos)       = Snd (shiftnl d c t) pos
 shiftnl d c (Succ t pos)      = Succ (shiftnl d c t) pos
 shiftnl d c (Pred t pos)      = Pred (shiftnl d c t) pos
+shiftnl d c (ELeft t ty pos)  = ELeft (shiftnl d c t) ty pos
+shiftnl d c (ERight t ty pos) = ERight (shiftnl d c t) ty pos
 shiftnl d c (IsZero t pos)    = IsZero (shiftnl d c t) pos
 shiftnl _ _ t                 = t
 
 -- Preforms variable substitution in branches
 subBranches :: Int -> Term -> Branches -> Branches
-subBranches j s [(p, t)] = [(p, sub j s t)]
-subBranches j s ((p, t):bs) = (p, sub j s t):bs' where bs' = subBranches j s bs
+subBranches j s [(p, t)] = [(p, sub (j + l) (shiftnl l 0 s) t)] where l = countVars p
+subBranches j s ((p, t):bs) = (p, sub (j + l) (shiftnl l 0 s) t):bs' where bs' = subBranches j s bs; l = countVars p
 
 sub :: Int -> Term -> Term -> Term
-sub j s (Abs ss ty t pos)  = Abs ss ty t' pos where t' = sub (j + 1) (shiftnl 1 0 s) t
-sub j s (App t1 t2 pos)    = App (sub j s t1) (sub j s t2) pos
-sub j s (Var i pos)        = if i == j then s else (Var i) pos
-sub j s (Record ts pos)    =
+sub j s (Abs ss ty t pos) = Abs ss ty t' pos where t' = sub (j + 1) (shiftnl 1 0 s) t
+sub j s (App t1 t2 pos)   = App (sub j s t1) (sub j s t2) pos
+sub j s (Var i pos)       = if i == j then s else (Var i) pos
+sub j s (Record ts pos)   =
   let su ts = case ts of
         []     -> []
         ((ss, t):ts) -> (ss, t'):(su ts) where t' = sub j s t
   in Record (su ts) pos
-sub j s (Proj t ss pos)    = Proj (sub j s t) ss pos
-sub j s (Pair t1 t2 pos)   = Pair (sub j s t1) (sub j s t2) pos
-sub j s (Fix t pos)        = Fix (sub j s t) pos
-sub j s (Let p t1 t2 pos)  = Let p (sub j s t1) (sub (j + l) (shiftnl l 0 s) t2) pos where l = countVars p
-sub j s (Case t bs pos)    = Case (sub j s t) (subBranches j s bs) pos
-sub j s (If t1 t2 t3 pos)  = If (sb t1) (sb t2) (sb t3) pos where sb = sub j s
-sub j s (Fst t pos)        = Fst (sub j s t) pos
-sub j s (Snd t pos)        = Snd (sub j s t) pos
-sub j s (Succ t pos)       = Succ (sub j s t) pos
-sub j s (Pred t pos)       = Pred (sub j s t) pos
-sub j s (IsZero t pos)     = IsZero (sub j s t) pos
-sub _ _ t                  = t
+sub j s (Proj t ss pos)   = Proj (sub j s t) ss pos
+sub j s (Pair t1 t2 pos)  = Pair (sub j s t1) (sub j s t2) pos
+sub j s (Fix t pos)       = Fix (sub j s t) pos
+sub j s (Let p t1 t2 pos) = Let p (sub j s t1) (sub (j + l) (shiftnl l 0 s) t2) pos where l = countVars p
+sub j s (Case t bs pos)   = Case (sub j s t) (subBranches j s bs) pos
+sub j s (If t1 t2 t3 pos) = If (sb t1) (sb t2) (sb t3) pos where sb = sub j s
+sub j s (Fst t pos)       = Fst (sub j s t) pos
+sub j s (Snd t pos)       = Snd (sub j s t) pos
+sub j s (Succ t pos)      = Succ (sub j s t) pos
+sub j s (Pred t pos)      = Pred (sub j s t) pos
+sub j s (IsZero t pos)    = IsZero (sub j s t) pos
+sub j s (ELeft t ty pos)  = ELeft (sub j s t) ty pos
+sub j s (ERight t ty pos) = ERight (sub j s t) ty pos
+sub _ _ t                 = t
 
 -- Substitutes patterns
 subPats :: [(String, Term)] -> Term -> Term
@@ -167,6 +171,18 @@ eval1 (IsZero (Succ t _) pos)     = Just $ Fls pos
 eval1 (IsZero t pos)              = do
   t' <- eval1 t
   return $ IsZero t' pos
+eval1 (ELeft t ty pos)            =
+  if isValue t
+    then Nothing
+    else do
+      t' <- eval1 t
+      return $ ELeft t' ty pos
+eval1 (ERight t ty pos)           =
+  if isValue t
+    then Nothing
+    else do
+      t' <- eval1 t
+      return $ ERight t' ty pos
 eval1 _                           = Nothing
 
 eval :: Term -> Term

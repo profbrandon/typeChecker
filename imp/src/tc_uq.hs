@@ -20,6 +20,7 @@ free0 :: TExpr -> [String]
 free0 (TVar n)    = [n]
 free0 (Arrow a b) = free0 a `union` free0 b
 free0 (TPair a b) = free0 a `union` free0 b
+free0 (Sum a b)   = free0 a `union` free0 b
 free0 _           = []
 
 -- Condenses Quantifiers
@@ -84,15 +85,19 @@ substitute v t2 t1 =
 substitute0 :: String -> TExpr -> TExpr -> TExpr
 substitute0 v t2 t1 =
   if hasTypeVar v (Type t1)
-    then case t1 of
-      Arrow a b -> Arrow a' b'
-        where a' = substitute0 v t2 a
-              b' = substitute0 v t2 b
-      TVar n    ->
-        if n == v
-          then t2
-          else TVar n
-      te' -> te'
+    then let sub2 con a b =
+               let a' = substitute0 v t2 a
+                   b' = substitute0 v t2 b
+               in con a' b'
+      in case t1 of
+        Arrow a b -> sub2 Arrow a b
+        TPair a b -> sub2 TPair a b
+        Sum a b   -> sub2 Sum a b
+        TVar n    ->
+          if n == v
+            then t2
+            else TVar n
+        te' -> te'
     else t1
 
 rename :: String -> String -> Type -> Type
@@ -135,19 +140,18 @@ substituteAll subs t1 =
 substituteAll0 :: Function String Type -> TExpr -> ([String], TExpr)
 substituteAll0 getSub t =
   case t of
-    Arrow a b ->
-      let (qsa, a') = substituteAll0 (getSub) a
-          (qsb, b') = substituteAll0 (getSub) b
-      in (qsa ++ qsb, Arrow a' b')
-    TPair a b ->
-      let (qsa, a') = substituteAll0 (getSub) a
-          (qsb, b') = substituteAll0 (getSub) b
-      in (qsa ++ qsb, TPair a' b')
+    Arrow a b -> sub2 Arrow a b
+    TPair a b -> sub2 TPair a b
+    Sum a b   -> sub2 Sum a b
     TVar v    -> 
       case getSub v of
         Nothing -> ([v], TVar v)
         Just ty -> separate ty
     t'        -> ([], t')
+  where sub2 con a b =
+          let (qsa, a') = substituteAll0 getSub a
+              (qsb, b') = substituteAll0 getSub b
+          in (qsa ++ qsb, con a' b')
 
 -- Checks for a conflict between substitutions and the given context
 tctxConflict :: TContext -> [(String, Type)] -> Bool
@@ -179,22 +183,24 @@ special t1 t2 = isJust $ findSubs [] t2 t1
 -- Finds Substitutions "s" such that s (t2) = t1 (if they exist)
   -- where s (t2) denotes performing all substitutions in s on t2
 findSubs :: [(String,Type)] -> Type -> Type -> Maybe [(String, Type)]
-findSubs s  (Forall v1 tt1) (Forall v2 tt2) = findSubs s tt1 tt2
-findSubs s  (Forall v tt) t = findSubs s tt t
-findSubs s  t (Forall v tt) = findSubs s t tt
-findSubs s0 (Type (Arrow t11 t12)) (Type (Arrow t21 t22)) = do
+findSubs s  (Forall v1 tt1)        (Forall v2 tt2)        = findSubs s tt1 tt2
+findSubs s  (Forall v tt)          t                      = findSubs s tt t
+findSubs s  t                      (Forall v tt)          = findSubs s t tt
+findSubs s0 (Type (Arrow t11 t12)) (Type (Arrow t21 t22)) = findSubs2 s0 t11 t12 t21 t22
+findSubs s0 (Type (TPair t11 t12)) (Type (TPair t21 t22)) = findSubs2 s0 t11 t12 t21 t22
+findSubs s0 (Type (Sum t11 t12))   (Type (Sum t21 t22))   = findSubs2 s0 t11 t12 t21 t22
+findSubs s  (Type (TVar n))        t1
+  | (n, t1) `elem` s                                      = return s
+  | isJust $ n `lookup` s                                 = Nothing
+  | otherwise                                             = return $ (n, t1):s
+findSubs s  (Type p1)              (Type p2)
+  | p1 == p2                                              = return []
+  | otherwise                                             = Nothing
+findSubs _  _                      _                      = Nothing
+
+findSubs2 :: [(String, Type)] -> TExpr -> TExpr -> TExpr -> TExpr -> Maybe [(String, Type)]
+findSubs2 s0 t11 t12 t21 t22 = do
   s1 <- findSubs s0 (Type t11) (Type t21)
   s2 <- findSubs s1 (Type t12) (Type t22)
-  return $ s2
-findSubs s0 (Type (TPair t11 t12)) (Type (TPair t21 t22)) = do
-  s1 <- findSubs s0 (Type t11) (Type t21)
-  s2 <- findSubs s1 (Type t12) (Type t22)
-  return $ s2
-findSubs s (Type (TVar n)) t1
-  | (n, t1) `elem` s      = return s
-  | isJust $ n `lookup` s = Nothing
-  | otherwise             = return $ (n, t1):s
-findSubs s (Type p1) (Type p2)
-  | p1 == p2  = return []
-  | otherwise = Nothing
-findSubs _ _ _ = Nothing
+  return s2
+  

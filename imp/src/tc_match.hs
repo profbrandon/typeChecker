@@ -36,6 +36,12 @@ tmatch PWild      _                = return []
 tmatch PUnit      (Type Unit)      = return []
 tmatch PZero      (Type Nat)       = return []
 tmatch (PSucc p)  (Type Nat)       = tmatch p (Type Nat)
-tmatch (PLeft p)  (Type (Sum t _)) = tmatch p (Type t)
-tmatch (PRight p) (Type (Sum _ t)) = tmatch p (Type t)
+tmatch (PLeft p)  t                =
+  case separate t of
+    (_, Sum a _) -> tmatch p $ quantify' (Type a)
+    _            -> Nothing
+tmatch (PRight p) t                =
+  case separate t of
+    (_, Sum _ b) -> tmatch p $ quantify' (Type b)
+    _            -> Nothing
 tmatch _          _                = Nothing
