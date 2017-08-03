@@ -3,100 +3,80 @@ module Evaluator
 
 where
 
-import Text.Parsec.Pos
-import Debug.Trace
+import Text.Parsec.Pos(SourcePos(..))
 
-import Language.AbstractSyntax
-import Language.Patterns
-import Evaluator.PatternMatching
-import TypeChecker
-import TypeChecker.Types
-import TypeChecker.UniversalQuantifiers.Utils
+import Language.AbstractSyntax(Term(..), Branches(..), VContext(..), pushBinding, isValue)
+import Language.Patterns(countVars)
+import Evaluator.PatternMatching(match)
+import TypeChecker(typeof0)
+import TypeChecker.Utils(nilmap)
+import TypeChecker.Types(Type(..))
+import TypeChecker.UniversalQuantifiers.Utils(findSubs, substituteAll)
 
 
 -- Evaluation
 
 -- Shift nameless terms by "d" above cutoff "c" in the term provided
 shiftnl :: Int -> Int -> Term -> Term
-shiftnl d c (Abs s ty t pos)  = Abs s ty (shiftnl d (c + 1) t) pos
-shiftnl d c (App t1 t2 pos)   = App (shiftnl d c t1) (shiftnl d c t2) pos
-shiftnl d c (Var k pos)       = Var (if k < c then k else (k + d)) pos
-shiftnl d c (Record ts pos)   =
-  let sh ts = case ts of
-        []     -> []
-        ((ss, t):ts) -> (ss, t'):(sh ts) where t' = shiftnl d c t
-  in Record (sh ts) pos
-shiftnl d c (Proj t s pos)    = Proj (shiftnl d c t) s pos
-shiftnl d c (Pair t1 t2 pos)  = Pair (shiftnl d c t1) (shiftnl d c t2) pos
-shiftnl d c (Fix t pos)       = Fix (shiftnl d c t) pos
-shiftnl d c (Let p t1 t2 pos) = Let p (shiftnl d c t1) (shiftnl d (c + l) t2) pos where l = countVars p
-shiftnl d c (Case t bs pos)   = 
-  let br bs = case bs of
-        [(p, t1)] -> [(p, shiftnl d (c + l) t1)] where l = countVars p 
-        ((p, t1):bs') -> (p, shiftnl d (c + l) t1):br bs' where l = countVars p
-  in Case (shiftnl d c t) (br bs) pos
-shiftnl d c (If t1 t2 t3 pos) = If (sh t1) (sh t2) (sh t3) pos where sh = shiftnl d c
-shiftnl d c (Fst t pos)       = Fst (shiftnl d c t) pos
-shiftnl d c (Snd t pos)       = Snd (shiftnl d c t) pos
-shiftnl d c (Succ t pos)      = Succ (shiftnl d c t) pos
-shiftnl d c (Pred t pos)      = Pred (shiftnl d c t) pos
-shiftnl d c (ELeft t ty pos)  = ELeft (shiftnl d c t) ty pos
-shiftnl d c (ERight t ty pos) = ERight (shiftnl d c t) ty pos
-shiftnl d c (IsZero t pos)    = IsZero (shiftnl d c t) pos
-shiftnl _ _ t                 = t
+shiftnl d c (Var k        pos) = Var    (if k < c then k else (k + d)) pos
+shiftnl d c (App t1 t2    pos) = App    (shiftnl d c t1) (shiftnl d c t2) pos
+shiftnl d c (Abs s  ty t  pos) = Abs s ty (shiftnl d (c + 1) t) pos
+shiftnl d c (If  t1 t2 t3 pos) = If     (sh t1) (sh t2) (sh t3) pos                 where sh = shiftnl d c
+shiftnl d c (Let p  t1 t2 pos) = Let p  (shiftnl d c t1) (shiftnl d (c + l) t2) pos where l = countVars p
+shiftnl d c (Case   t  bs pos) = Case   (shiftnl d c t)  (map shift bs)         pos where shift = \(p, t) -> (p, shiftnl d (c + countVars p) t)
+shiftnl d c (Proj   t  s  pos) = Proj   (shiftnl d c t) s pos
+shiftnl d c (Record fs    pos) = Record (map shift fs) pos                          where shift = \(s, f) -> (s, shiftnl d c f) 
+shiftnl d c (Pair   t1 t2 pos) = Pair   (shiftnl d c t1) (shiftnl d c t2) pos
+shiftnl d c (ELeft  t  ty pos) = ELeft  (shiftnl d c t) ty pos
+shiftnl d c (ERight t  ty pos) = ERight (shiftnl d c t) ty pos
+shiftnl d c (Fix    t     pos) = Fix    (shiftnl d c t) pos
+shiftnl d c (Fst    t     pos) = Fst    (shiftnl d c t) pos
+shiftnl d c (Snd    t     pos) = Snd    (shiftnl d c t) pos
+shiftnl d c (Succ   t     pos) = Succ   (shiftnl d c t) pos
+shiftnl d c (Pred   t     pos) = Pred   (shiftnl d c t) pos
+shiftnl d c (IsZero t     pos) = IsZero (shiftnl d c t) pos
+shiftnl _ _ t                  = t
 
 -- Preforms variable substitution in branches
-subBranches :: Int -> Term -> Branches -> Branches
-subBranches j s [(p, t)] = [(p, sub (j + l) (shiftnl l 0 s) t)] where l = countVars p
-subBranches j s ((p, t):bs) = (p, sub (j + l) (shiftnl l 0 s) t):bs' where bs' = subBranches j s bs; l = countVars p
-
 sub :: Int -> Term -> Term -> Term
-sub j s (Abs ss ty t pos) = Abs ss ty t' pos where t' = sub (j + 1) (shiftnl 1 0 s) t
-sub j s (App t1 t2 pos)   = App (sub j s t1) (sub j s t2) pos
-sub j s (Var i pos)       = if i == j then s else (Var i) pos
-sub j s (Record ts pos)   =
-  let su ts = case ts of
-        []     -> []
-        ((ss, t):ts) -> (ss, t'):(su ts) where t' = sub j s t
-  in Record (su ts) pos
-sub j s (Proj t ss pos)   = Proj (sub j s t) ss pos
-sub j s (Pair t1 t2 pos)  = Pair (sub j s t1) (sub j s t2) pos
-sub j s (Fix t pos)       = Fix (sub j s t) pos
-sub j s (Let p t1 t2 pos) = Let p (sub j s t1) (sub (j + l) (shiftnl l 0 s) t2) pos where l = countVars p
-sub j s (Case t bs pos)   = Case (sub j s t) (subBranches j s bs) pos
-sub j s (If t1 t2 t3 pos) = If (sb t1) (sb t2) (sb t3) pos where sb = sub j s
-sub j s (Fst t pos)       = Fst (sub j s t) pos
-sub j s (Snd t pos)       = Snd (sub j s t) pos
-sub j s (Succ t pos)      = Succ (sub j s t) pos
-sub j s (Pred t pos)      = Pred (sub j s t) pos
-sub j s (IsZero t pos)    = IsZero (sub j s t) pos
-sub j s (ELeft t ty pos)  = ELeft (sub j s t) ty pos
-sub j s (ERight t ty pos) = ERight (sub j s t) ty pos
-sub _ _ t                 = t
-
-subTypeCaseBranch :: [(String, Type)] -> Branches -> Branches
-subTypeCaseBranch subs [(p, e)]    = [(p, e')] where e' = subType subs e
-subTypeCaseBranch subs ((p, e):bs) = (p, e'):bs' where e' = subType subs e; bs' = subTypeCaseBranch subs bs
+sub j s (Var  i        pos) = if i == j then s else (Var i) pos
+sub j s (App  t1 t2    pos) = App    (sub j s t1) (sub j s t2) pos
+sub j s (Abs  n  ty t  pos) = Abs    n ty t' pos                                       where t' = sub (j + 1) (shiftnl 1 0 s) t
+sub j s (If   t1 t2 t3 pos) = If     (sb t1) (sb t2) (sb t3) pos                       where sb = sub j s
+sub j s (Let  p  t1 t2 pos) = Let p  (sub j s t1) (sub (j + l) (shiftnl l 0 s) t2) pos where l = countVars p
+sub j s (Case t  bs    pos) = Case   (sub j s t) (map su bs) pos                       where su = \(p, t) -> let l = countVars p in (p, sub (j + l) (shiftnl l 0 s) t)
+sub j s (Proj t  ss    pos) = Proj   (sub j s t) ss pos
+sub j s (Record  ts    pos) = Record (map su ts) pos                                   where su = \(n, f) -> (n, sub j s f)
+sub j s (Pair t1 t2    pos) = Pair   (sub j s t1) (sub j s t2) pos
+sub j s (ELeft   t ty  pos) = ELeft  (sub j s t) ty pos
+sub j s (ERight  t ty  pos) = ERight (sub j s t) ty pos
+sub j s (Fix     t     pos) = Fix    (sub j s t) pos
+sub j s (Fst     t     pos) = Fst    (sub j s t) pos
+sub j s (Snd     t     pos) = Snd    (sub j s t) pos
+sub j s (Succ    t     pos) = Succ   (sub j s t) pos
+sub j s (Pred    t     pos) = Pred   (sub j s t) pos
+sub j s (IsZero  t     pos) = IsZero (sub j s t) pos
+sub _ _ t                   = t
 
 -- Performs substitution in type annotations
 subType :: [(String, Type)] -> Term -> Term
-subType []   t                 = t
-subType subs (Abs s ty t pos)  = Abs   s ty' t'  pos where ty' = substituteAll subs ty; t' = subType subs t
-subType subs (ELeft t ty pos)  = ELeft   t'  ty' pos where ty' = substituteAll subs ty; t' = subType subs t
-subType subs (ERight t ty pos) = ERight  t'  ty' pos where ty' = substituteAll subs ty; t' = subType subs t
-subType subs (App t1 t2 pos)   = App t1' t2'     pos where t1' = subType subs t1; t2' = subType subs t2
-subType subs (If t1 t2 t3 pos) = If  t1' t2' t3' pos where [t1',t2',t3'] = map (subType subs) [t1,t2,t3]
-subType subs (Let p t1 t2 pos) = Let p   t1' t2' pos where t1' = subType subs t1; t2' = subType subs t2
-subType subs (Case t bs pos)   = Case t' bs' pos where t' = subType subs t; bs' = subTypeCaseBranch subs bs
-subType subs (Proj t s pos)    = Proj t' s pos   where t' = subType subs t
-subType subs (Fix t pos)       = Fix    t' pos   where t' = subType subs t
-subType subs (Fst t pos)       = Fst    t' pos   where t' = subType subs t
-subType subs (Snd t pos)       = Snd    t' pos   where t' = subType subs t
-subType subs (Succ t pos)      = Succ   t' pos   where t' = subType subs t
-subType subs (Pred t pos)      = Succ   t' pos   where t' = subType subs t
-subType subs (IsZero t pos)    = IsZero t' pos   where t' = subType subs t
-subType subs (Pair t1 t2 pos)  = Pair t1' t2' pos where [t1',t2'] = map (subType subs) [t1,t2]
-subType _    t                 = t
+subType []   t                  = t
+subType subs (Abs s  ty t  pos) = Abs s   ty' t'  pos where ty' = substituteAll subs ty; t' = subType subs t
+subType subs (ELeft  t  ty pos) = ELeft   t'  ty' pos where ty' = substituteAll subs ty; t' = subType subs t
+subType subs (ERight t  ty pos) = ERight  t'  ty' pos where ty' = substituteAll subs ty; t' = subType subs t
+subType subs (App t1 t2    pos) = App t1' t2'     pos where t1' = subType subs t1; t2' = subType subs t2
+subType subs (If  t1 t2 t3 pos) = If  t1' t2' t3' pos where [t1',t2',t3'] = map (subType subs) [t1,t2,t3]
+subType subs (Let p  t1 t2 pos) = Let p   t1' t2' pos where t1' = subType subs t1; t2' = subType subs t2
+subType subs (Case   t  bs pos) = Case    t'  (map stb bs) pos where t' = subType subs t; stb = \(p, e) -> (p, subType subs e)
+subType subs (Proj   t  s  pos) = Proj    t'  s   pos where t' = subType subs t
+subType subs (Pair   t1 t2 pos) = Pair    t1' t2' pos where [t1',t2'] = map (subType subs) [t1,t2]
+subType subs (Fix    t     pos) = Fix     t'      pos where t' = subType subs t
+subType subs (Fst    t     pos) = Fst     t'      pos where t' = subType subs t
+subType subs (Snd    t     pos) = Snd     t'      pos where t' = subType subs t
+subType subs (Succ   t     pos) = Succ    t'      pos where t' = subType subs t
+subType subs (Pred   t     pos) = Succ    t'      pos where t' = subType subs t
+subType subs (IsZero t     pos) = IsZero  t'      pos where t' = subType subs t
+subType _    t                  = t
 
 -- Substitutes patterns
 subPats :: [(String, Term)] -> Term -> Term
@@ -106,13 +86,11 @@ subPats ((_, t):xs) te = subPats xs te' where te' = sub (length xs) t te
 -- Evaluates branches of case expressions
 evalBranches :: Term -> Branches -> SourcePos -> Term
 evalBranches t [(p, e)] pos =
-  let msubs = match p t
-  in case msubs of
+  case match p t of
     Nothing   -> error $ "non-exhaustive patterns in case expression at " ++ show pos
     Just subs -> subPats subs e
 evalBranches t ((p, e):bs) pos =
-  let msubs = match p t
-  in case msubs of
+  case match p t of
     Nothing   -> evalBranches t bs pos
     Just subs -> subPats subs e
 

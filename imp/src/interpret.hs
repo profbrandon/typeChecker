@@ -5,16 +5,17 @@ module Main
   )
 where
 
-
-import System.Console.Haskeline
-import System.Environment
-import System.Directory
+import Prelude hiding (parse)
+import System.Console.Haskeline(InputT(..), runInputT, defaultSettings, getInputLine, outputStrLn)
+import System.Environment(getArgs)
+import System.Directory(doesFileExist)
 import Data.List (isPrefixOf)
 
-import Parser
-import Evaluator
-import TypeChecker
-import Language.AbstractSyntax
+import Parser(parse)
+import Evaluator(eval)
+import TypeChecker(typeof)
+import TypeChecker.Types(Type(..))
+import Language.AbstractSyntax(Term(..))
 
 
 type Error = String
@@ -61,11 +62,11 @@ getFiles (f:fs) = do
   ss <- getFiles fs
   return $ s ++ ss
 
-computeVal :: String -> Either Main.Error (TypeChecker.Type, Language.AbstractSyntax.Term)
+computeVal :: String -> Either Main.Error (Type, Term)
 computeVal txt =
-  case Parser.parse txt of
+  case parse txt of
     Left e     -> Left $ "Parsing Error:  " ++ show e
     Right term ->
-      case TypeChecker.typeof term of
+      case typeof term of
         Left e   -> Left $ "Type Error:  " ++ show e
         Right ty -> return $ (ty, eval term)

@@ -1,30 +1,17 @@
 
 module TypeChecker
-  ( Term(..)
-  , Type(..)
-  , TExpr(..)
-  , TContext(..)
-  , VContext(..)
-  , nilmap
-  , pushBinding
-  , typeof
+  ( typeof
   , typeof0
-  , special
-  , (!>)
   )
 where
 
-import Data.List (union, delete)
-import Data.Maybe (isJust, isNothing)
 import Text.Parsec (SourcePos)
 
-import TypeChecker.Utils
-import TypeChecker.Types
-import TypeChecker.UniversalQuantifiers.Utils
-import TypeChecker.PatternMatching
-import Evaluator.PatternMatching
-import Language.AbstractSyntax
-
+import TypeChecker.Utils (nilmap)
+import TypeChecker.Types (Type(..), TExpr(..), TContext(..), addAllBindings)
+import TypeChecker.UniversalQuantifiers.Utils (buildArrow, findSubs, quantify, quantify', renameUnique, separate, splitArrow, substituteAll, tctxConflict, (!>))
+import TypeChecker.PatternMatching (tmatch)
+import Language.AbstractSyntax (Term(..), VContext(..), Branches(..), pushAllBindings, pushBinding)
 
 data Error = ParamTypeMismatch    Type Type   SourcePos
            | IfBranchMismatch     Type Type   SourcePos
@@ -47,22 +34,22 @@ instance Show Error where
   show = showError
 
 showError :: Error -> String
-showError (ParamTypeMismatch t1 t2 pos)  = "parameter type mismatch. Expected type " ++ show t1 ++ ", recieved type " ++ show t2 ++ " at " ++ show pos
-showError (IfBranchMismatch t1 t2 pos)   = "type mismatch in branches of conditional. Recieved types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
+showError (ParamTypeMismatch  t1 t2 pos) = "parameter type mismatch. Expected type " ++ show t1 ++ ", recieved type " ++ show t2 ++ " at " ++ show pos
+showError (IfBranchMismatch   t1 t2 pos) = "type mismatch in branches of conditional. Recieved types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
 showError (CaseBranchMismatch t1 t2 pos) = "type mismatch in branches of case expression. Recieved types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
-showError (SumMismatch t1 t2 pos)        = "type mismatch in sum annotation.  Recieved type " ++ show t1 ++ ", expected " ++ show t2 ++ " at " ++ show pos
-showError (ProjectionMismatch t s pos)  = "type mismatch in projection.  Recieved field " ++ s ++ ", expected a member of " ++ show t ++ " at " ++ show pos
-showError (ExpectedArrow t pos)         = "expected arrow type, recieved type " ++ show t ++ " at " ++ show pos
-showError (ExpectedSum t pos)           = "expected sum type, recieved type " ++ show t ++ " at " ++ show pos
-showError (ExpectedBoolGuard t pos)     = "expected argument of type Bool to guard of conditional, recieved type " ++ show t ++ " at " ++ show pos
-showError (ExpectedPairtoFst t pos)     = "expected argument of type (a, b) to \'fst\' function, recieved type " ++ show t ++ " at " ++ show pos
-showError (ExpectedPairtoSnd t pos)     = "expected argument of type (a, b) to \'snd\' function, recieved type " ++ show t ++ " at " ++ show pos
-showError (ExpectedNattoSucc t pos)     = "expected argument of type Nat to \'succ\' function, recieved type " ++ show t ++ " at " ++ show pos
-showError (ExpectedNattoPred t pos)     = "expected argument of type Nat to \'pred\' function, recieved type " ++ show t ++ " at " ++ show pos
-showError (ExpectedNattoIsZero t pos)   = "expected argument of type Nat to \'iszero\' function, recieved type " ++ show t ++ " at " ++ show pos
-showError (ExpectedRecordtoProj t pos)  = "expected argument of type {a = A,b = B,...} to projection, recieved type " ++ show t ++ " at " ++ show pos
-showError (PatternError pos)            = "pattern error at " ++ show pos
-showError (UnboundVar pos)              = "unbound variable at " ++ show pos
+showError (SumMismatch        t1 t2 pos) = "type mismatch in sum annotation.  Recieved type " ++ show t1 ++ ", expected " ++ show t2 ++ " at " ++ show pos
+showError (ProjectionMismatch t  s  pos) = "type mismatch in projection.  Recieved field " ++ s ++ ", expected a member of " ++ show t ++ " at " ++ show pos
+showError (ExpectedArrow         t  pos) = "expected arrow type, recieved type " ++ show t ++ " at " ++ show pos
+showError (ExpectedSum            t pos) = "expected sum type, recieved type " ++ show t ++ " at " ++ show pos
+showError (ExpectedBoolGuard      t pos) = "expected argument of type Bool to guard of conditional, recieved type " ++ show t ++ " at " ++ show pos
+showError (ExpectedPairtoFst      t pos) = "expected argument of type (a, b) to \'fst\' function, recieved type " ++ show t ++ " at " ++ show pos
+showError (ExpectedPairtoSnd      t pos) = "expected argument of type (a, b) to \'snd\' function, recieved type " ++ show t ++ " at " ++ show pos
+showError (ExpectedNattoSucc      t pos) = "expected argument of type Nat to \'succ\' function, recieved type " ++ show t ++ " at " ++ show pos
+showError (ExpectedNattoPred      t pos) = "expected argument of type Nat to \'pred\' function, recieved type " ++ show t ++ " at " ++ show pos
+showError (ExpectedNattoIsZero    t pos) = "expected argument of type Nat to \'iszero\' function, recieved type " ++ show t ++ " at " ++ show pos
+showError (ExpectedRecordtoProj   t pos) = "expected argument of type {a = A,b = B,...} to projection, recieved type " ++ show t ++ " at " ++ show pos
+showError (PatternError             pos) = "pattern error at " ++ show pos
+showError (UnboundVar               pos) = "unbound variable at " ++ show pos
 
 
 

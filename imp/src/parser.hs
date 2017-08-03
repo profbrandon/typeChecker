@@ -5,15 +5,16 @@ module Parser
 where
 
 import Data.Char (isLower, isUpper)
-import Text.Parsec
+import Text.Parsec (between, try, many, many1, manyTill, eof, choice, sepBy, sepBy1, parse, parserFail, unexpected, (<|>))
 import Text.Parsec.Prim (getPosition)
-import Text.Parsec.Char
-import Text.Parsec.String
+import Text.Parsec.Pos (SourcePos)
+import Text.Parsec.Char (char, alphaNum, letter, space, string, digit)
+import Text.Parsec.String (Parser)
 
-import Language.Patterns
-import Language.AbstractSyntax
-import TypeChecker.Types
-import TypeChecker.Utils
+import Language.Patterns (Pat(..))
+import Language.AbstractSyntax (Term(..), VContext(..), addPatterns, pushBinding)
+import TypeChecker.Types (Type(..), TExpr(..))
+import TypeChecker.Utils (nilmap)
 import TypeChecker.UniversalQuantifiers.Utils (quantify')
 
 parse = Text.Parsec.parse (expr nilmap) ""

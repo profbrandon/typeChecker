@@ -2,22 +2,26 @@
 
 module Language.Patterns 
   ( Pat(..)
-  , countVars )
+  , PFields(..)
+  , countVars
+  )
 where
 
 -- Patterns
-data Pat = PVar String
-         | PPair Pat Pat
-         | PRec [(String, Pat)]
-         | PLeft Pat
-         | PRight Pat
-         | PTru
-         | PFls
-         | PWild
-         | PUnit
-         | PZero
-         | PSucc Pat
+data Pat = PVar   String      -- a, b, c, ...
+         | PRec   PFields     -- {}, {a = b}, ...
+         | PPair  Pat     Pat -- (a,b)
+         | PSucc  Pat         -- succ a   Can only read numbers. It is used to match objects like 1, 2, 3
+         | PLeft  Pat         -- Left a
+         | PRight Pat         -- Right a
+         | PTru               -- True
+         | PFls               -- False
+         | PUnit              -- ()
+         | PZero              -- 0
+         | PWild              -- _
          deriving Eq
+
+type PFields = [(String, Pat)]
 
 instance Show Pat where
   show = showPat
@@ -33,19 +37,17 @@ toInt (PSucc p) = 1 + (toInt p)
 toInt _         = error "Non-numeric argument supplied to function 'toInt'"
 
 showPat :: Pat -> String
-showPat (PVar s)      = s
-showPat PTru          = "True"
-showPat PFls          = "False"
-showPat PWild         = "_"
-showPat PUnit         = "()"
-showPat PZero         = "0"
-showPat (PLeft p)     = "Left " ++ show p
-showPat (PRight p)    = "Right " ++ show p 
-showPat (PSucc p)
-  | countVars p == 0  = show $ 1 + toInt p
-  | otherwise         = "succ (" ++ show p ++ ")" 
-showPat (PPair p1 p2) = "(" ++ show p1 ++ "," ++ show p2 ++ ")"
-showPat (PRec ps)     = "{" ++ showFields ps ++ "}"
+showPat (PVar   s)     = s
+showPat (PLeft  p)     = "Left "  ++ show p
+showPat (PRight p)     = "Right " ++ show p 
+showPat (PSucc  p)     = show $ 1 + toInt p 
+showPat (PPair  p1 p2) = "(" ++ show p1 ++ "," ++ show p2 ++ ")"
+showPat (PRec   ps)    = "{" ++ showFields ps ++ "}"
+showPat PTru           = "True"
+showPat PFls           = "False"
+showPat PUnit          = "()"
+showPat PZero          = "0"
+showPat PWild          = "_"
 
 countVars :: Pat -> Int 
 countVars (PVar _)    = 1
