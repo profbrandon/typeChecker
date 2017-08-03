@@ -27,15 +27,27 @@ tmatch (PPair p1 p2) t             =
       s2 <- tmatch p2 (quantify' (Type b))
       return $ s1 ++ s2
     _ -> Nothing
+tmatch (PCons p1 p2) t             =
+  case separate t of
+    (_, List a) -> do
+      s1 <- tmatch p1 (quantify' (Type a)) 
+      s2 <- tmatch p2 t
+      return $ s1 ++ s2
+    _           -> Nothing
 tmatch (PRec ps)  (Type (TRec ts))
   | length ps == length ts         = matchRec ps ts
   | otherwise                      = Nothing
-tmatch PTru       (Type Bool)      = return []
-tmatch PFls       (Type Bool)      = return []
+tmatch PTru       t                = tmatch0 (Type Bool) t
+tmatch PFls       t                = tmatch0 (Type Bool) t
 tmatch PWild      _                = return []
-tmatch PUnit      (Type Unit)      = return []
-tmatch PZero      (Type Nat)       = return []
+tmatch PUnit      t                = tmatch0 (Type Unit) t
+tmatch PZero      t                = tmatch0 (Type Nat) t
+tmatch PNil       t                =
+  case separate t of
+    (_, List _) -> return []
+    _           -> Nothing
 tmatch (PSucc p)  (Type Nat)       = tmatch p (Type Nat)
+tmatch (PSucc p)  t                = tmatch0 (Type Nat) t
 tmatch (PLeft p)  t                =
   case separate t of
     (_, Sum a _) -> tmatch p $ quantify' (Type a)
@@ -45,3 +57,8 @@ tmatch (PRight p) t                =
     (_, Sum _ b) -> tmatch p $ quantify' (Type b)
     _            -> Nothing
 tmatch _          _                = Nothing
+
+tmatch0 :: Type -> Type -> Maybe [(String, Type)]
+tmatch0 ag t = do
+  subs <- findSubs [] t ag
+  return subs

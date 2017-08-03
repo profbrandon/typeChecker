@@ -22,6 +22,7 @@ data TExpr = Arrow TExpr  TExpr
            | Bool
            | Nat
            | Unit
+           | List  TExpr
            | Sum   TExpr  TExpr
            | TPair TExpr  TExpr
            | TRec  Fields
@@ -56,6 +57,7 @@ showTExpr :: TExpr -> String
 showTExpr Bool        = "Bool"
 showTExpr Nat         = "Nat"
 showTExpr Unit        = "()"
+showTExpr (List a)    = "[" ++ show a ++ "]"
 showTExpr (TVar n)    = n
 showTExpr (TName n)   = n
 showTExpr (TRec fs)   = "{" ++ showFields fs ++ "}"

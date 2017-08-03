@@ -11,6 +11,7 @@ where
 data Pat = PVar   String      -- a, b, c, ...
          | PRec   PFields     -- {}, {a = b}, ...
          | PPair  Pat     Pat -- (a,b)
+         | PCons  Pat     Pat -- (a@b)
          | PSucc  Pat         -- succ a   Can only read numbers. It is used to match objects like 1, 2, 3
          | PLeft  Pat         -- Left a
          | PRight Pat         -- Right a
@@ -19,6 +20,7 @@ data Pat = PVar   String      -- a, b, c, ...
          | PUnit              -- ()
          | PZero              -- 0
          | PWild              -- _
+         | PNil               -- []
          deriving Eq
 
 type PFields = [(String, Pat)]
@@ -39,7 +41,8 @@ toInt _         = error "Non-numeric argument supplied to function 'toInt'"
 showPat :: Pat -> String
 showPat (PVar   s)     = s
 showPat (PLeft  p)     = "Left "  ++ show p
-showPat (PRight p)     = "Right " ++ show p 
+showPat (PRight p)     = "Right " ++ show p
+showPat (PCons  p1 p2) = "(" ++ show p1 ++ "@" ++ show p2 ++ ")" 
 showPat (PSucc  p)     = show $ 1 + toInt p 
 showPat (PPair  p1 p2) = "(" ++ show p1 ++ "," ++ show p2 ++ ")"
 showPat (PRec   ps)    = "{" ++ showFields ps ++ "}"
@@ -47,6 +50,7 @@ showPat PTru           = "True"
 showPat PFls           = "False"
 showPat PUnit          = "()"
 showPat PZero          = "0"
+showPat PNil           = "[]"
 showPat PWild          = "_"
 
 countVars :: Pat -> Int 

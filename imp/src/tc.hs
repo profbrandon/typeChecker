@@ -18,6 +18,7 @@ data Error = ParamTypeMismatch    Type Type   SourcePos
            | CaseBranchMismatch   Type Type   SourcePos
            | SumMismatch          Type Type   SourcePos
            | ProjectionMismatch   Type String SourcePos
+           | ConsMismatch         Type Type   SourcePos
            | ExpectedArrow        Type        SourcePos
            | ExpectedSum          Type        SourcePos
            | ExpectedBoolGuard    Type        SourcePos
@@ -39,6 +40,7 @@ showError (IfBranchMismatch   t1 t2 pos) = "type mismatch in branches of conditi
 showError (CaseBranchMismatch t1 t2 pos) = "type mismatch in branches of case expression. Recieved types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
 showError (SumMismatch        t1 t2 pos) = "type mismatch in sum annotation.  Recieved type " ++ show t1 ++ ", expected " ++ show t2 ++ " at " ++ show pos
 showError (ProjectionMismatch t  s  pos) = "type mismatch in projection.  Recieved field " ++ s ++ ", expected a member of " ++ show t ++ " at " ++ show pos
+showError (ConsMismatch       t1 t2 pos) = "type mismatch in cons expression (@).  Expected types of 'a' and '[a]', but received types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
 showError (ExpectedArrow         t  pos) = "expected arrow type, recieved type " ++ show t ++ " at " ++ show pos
 showError (ExpectedSum            t pos) = "expected sum type, recieved type " ++ show t ++ " at " ++ show pos
 showError (ExpectedBoolGuard      t pos) = "expected argument of type Bool to guard of conditional, recieved type " ++ show t ++ " at " ++ show pos
@@ -203,7 +205,18 @@ typeof0 tctx vctx (ERight t ty pos)  =
         then return ty
         else Left $ SumMismatch ty' b' pos
     _            -> Left $ ExpectedSum ty pos
+typeof0 tctx vctx (Cons t ts pos)    = do
+  ty  <- typeof0 tctx vctx t
+  tys <- typeof0 tctx vctx ts
+  case separate tys of
+    (_, List a) -> let a' = quantify' (Type a)
+      in if ty !> a'
+        then return $ quantify' (Type $ List (snd $ separate ty))
+        else if a' !> ty
+          then return tys
+          else Left $ ConsMismatch ty tys pos
 typeof0 _    _    (Tru _)            = return $ Type Bool
 typeof0 _    _    (Fls _)            = return $ Type Bool
 typeof0 _    _    (Zero _)           = return $ Type Nat
 typeof0 _    _    (EUnit _)          = return $ Type Unit
+typeof0 _    _    (Nil   _)          = return $ Forall "a" $ Type $ List $ TVar "a"

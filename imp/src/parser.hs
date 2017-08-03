@@ -4,6 +4,8 @@ module Parser
   )
 where
 
+import Debug.Trace
+
 import Data.Char (isLower, isUpper)
 import Text.Parsec (between, try, many, many1, manyTill, eof, choice, sepBy, sepBy1, parse, parserFail, unexpected, (<|>))
 import Text.Parsec.Prim (getPosition)
@@ -32,6 +34,7 @@ term vctx = do
     <|> (try $ pair vctx)
     <|> (try $ do char '('; white; t <- expr vctx; char ')'; white; return t)
     <|> (try $ record vctx)
+    <|> (try $ sslist vctx)
     <|> (try $ fix vctx)
     <|> (try $ first vctx)
     <|> (try $ second vctx)
@@ -45,7 +48,20 @@ term vctx = do
     <|> (try $ ccase vctx)
     <|> (try $ cond vctx)
     <|> (try $ var vctx)
-  proj t0 vctx
+  t1 <- proj t0 vctx 
+  cons t1 vctx
+
+sslist :: VContext -> Parser Term
+sslist vctx = do
+  pos <- getPosition
+  char '['; white
+  ts <- sepBy (expr vctx) (do char ','; white)
+  char ']'; white
+  return $ convertList ts pos
+
+convertList :: [Term] -> SourcePos -> Term
+convertList []     pos = Nil pos
+convertList (t:ts) pos = Cons t ts' pos where ts' = convertList ts pos
 
 ccase :: VContext -> Parser Term
 ccase vctx = do
@@ -86,6 +102,12 @@ proj t vctx = do
   pos <- getPosition
   choice [ do char '.'; white; s <- identifier; white; return $ Proj t s pos
          , do white; return t]
+
+cons :: Term -> VContext -> Parser Term
+cons e1 vctx = do
+  pos <- getPosition
+  choice [ do char '@'; white; e2 <- expr vctx; return $ Cons e1 e2 pos
+         , do white; return e1]
 
 app :: Term -> VContext -> Parser Term
 app t1 vctx = do
@@ -229,6 +251,7 @@ texpr = do
   te <- (try bool) 
     <|> (try nat)
     <|> (try unit)
+    <|> (try list)
     <|> (try tpair)
     <|> (try tsum)
     <|> (try $ do char '('; white; Type t <- texpr; char ')'; white; return t)
@@ -237,6 +260,13 @@ texpr = do
     <|> (try tname)
   te' <- arrow te
   return $ Type te'
+
+list :: Parser TExpr
+list = do
+  char '['; white
+  Type t1 <- texpr
+  char ']'; white
+  return $ List t1
 
 arrow :: TExpr -> Parser TExpr
 arrow t1 = do
@@ -310,6 +340,7 @@ tfield = do
 
 pat :: Parser Pat
 pat = (try punit)
+  <|> (try pnil)
   <|> (try $ do char '('; white; p <- pat; char ')'; white; return p)
   <|> (try pnum)
   <|> (try pwild)
@@ -319,7 +350,23 @@ pat = (try punit)
   <|> (try pright)
   <|> (try pvar) 
   <|> (try ppair)
+  <|> (try pcons)
   <|> (try prec)
+
+pnil :: Parser Pat
+pnil = do
+  char '['; white
+  char ']'; white
+  return $ PNil
+
+pcons :: Parser Pat
+pcons = do
+  char '('; white
+  p1 <- pat
+  char '@'; white
+  p2 <- (try pcons) <|> (try pnil) <|> (try pvar) <|> pwild
+  char ')'; white
+  return $ PCons p1 p2 
 
 pleft :: Parser Pat
 pleft = do

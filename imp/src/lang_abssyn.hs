@@ -11,6 +11,7 @@ module Language.AbstractSyntax
   )
 where
 
+import Prelude hiding (showList)
 import Data.List (delete, lookup)
 import Text.Parsec (SourcePos)
 
@@ -27,6 +28,7 @@ data Term = Var    Int                  SourcePos
           | Proj   Term   String        SourcePos
           | Record Fields               SourcePos
           | Pair   Term   Term          SourcePos
+          | Cons   Term   Term          SourcePos
           | ELeft  Term   Type          SourcePos
           | ERight Term   Type          SourcePos
           | Fix    Term                 SourcePos
@@ -39,6 +41,7 @@ data Term = Var    Int                  SourcePos
           | Fls                         SourcePos
           | Zero                        SourcePos
           | EUnit                       SourcePos
+		  | Nil                         SourcePos
 
 type Fields = [(String, Term)]
 
@@ -63,6 +66,7 @@ findPVars :: Pat -> [String]
 findPVars (PPair  a b) = findPVars a ++ findPVars b
 findPVars (PRec   ps)  = concatMap (\(_, p) -> findPVars p) ps
 findPVars (PSucc  p)   = findPVars p
+findPVars (PCons  a b) = findPVars a ++ findPVars b
 findPVars (PLeft  p)   = findPVars p
 findPVars (PRight p)   = findPVars p
 findPVars (PVar   s)   = [s]
@@ -77,12 +81,14 @@ isValue (Let  _ _ _ _) = True
 isValue (Record  fs _) = and $ map isValue (snd $ unzip fs)
 isValue (Pair t1 t2 _) = isValue t1 && isValue t2
 isValue (Succ   t _)   = isValue t
+isValue (Cons t1 t2 _) = isValue t1 && isValue t2
 isValue (ELeft  t _ _) = isValue t
 isValue (ERight t _ _) = isValue t
 isValue (Tru    _)     = True
 isValue (Fls    _)     = True
 isValue (Zero   _)     = True
 isValue (EUnit  _)     = True
+isValue (Nil    _)     = True
 isValue _              = False
 
 toInt :: Term -> Int
@@ -98,6 +104,11 @@ showFields ctx (f:fs) = fst f ++ " = " ++ showTerm ctx (snd f) ++ "," ++ showFie
 showBranches :: VContext -> Branches -> String
 showBranches ctx [(p, t)]    = show p ++ " -> " ++ showTerm ctx' t where ctx' = addPatterns ctx p
 showBranches ctx ((p, t):bs) = show p ++ " -> " ++ showTerm ctx' t ++ "; " ++ showBranches ctx bs where ctx' = addPatterns ctx p
+
+showList :: VContext -> Term -> String
+showList _    (Nil       _)     = ""
+showList ctx (Cons t (Nil _) _) = showTerm ctx t
+showList ctx (Cons t ts _)      = showTerm ctx t ++ ',':showList ctx ts
 
 showTerm :: VContext -> Term -> String
 showTerm ctx (Var    i  _)    =
@@ -116,6 +127,10 @@ showTerm ctx (Case   t  bs _) = "case " ++ showTerm ctx t ++ " of " ++ showBranc
 showTerm ctx (Proj   t  s  _) = showTerm ctx t ++ "." ++ s
 showTerm ctx (Record    fs _) = "{"        ++ showFields ctx fs ++ "}"
 showTerm ctx (Pair   t1 t2 _) = "("        ++ showTerm ctx t1 ++ "," ++ showTerm ctx t2 ++ ")"
+showTerm ctx (Cons t1 t2 pos) 
+  | isValue t1 && isValue t2  = "[" ++ showList ctx (Cons t1 t2 pos) ++ "]"
+  | isValue t2                = "(" ++ showTerm ctx t1 ++ ")@[" ++ showList ctx t2 ++ "]"
+  | otherwise                 = "(" ++ showTerm ctx t2 ++ ")@" ++ showTerm ctx t2
 showTerm ctx (ELeft  t  ty _) = "Left "    ++ showTerm ctx t ++ " : " ++ show ty
 showTerm ctx (ERight t  ty _) = "Right "   ++ showTerm ctx t ++ " : " ++ show ty
 showTerm ctx (Fix    t  _)    = "fix ("    ++ showTerm ctx t ++ ")"
@@ -130,3 +145,4 @@ showTerm _   (Tru    _)       = "True"
 showTerm _   (Fls    _)       = "False"
 showTerm _   (Zero   _)       = "0"
 showTerm _   (EUnit  _)       = "()"
+showTerm _   (Nil    _)       = "[]"

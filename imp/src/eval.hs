@@ -35,6 +35,7 @@ shiftnl d c (Snd    t     pos) = Snd    (shiftnl d c t) pos
 shiftnl d c (Succ   t     pos) = Succ   (shiftnl d c t) pos
 shiftnl d c (Pred   t     pos) = Pred   (shiftnl d c t) pos
 shiftnl d c (IsZero t     pos) = IsZero (shiftnl d c t) pos
+shiftnl d c (Cons   t  ts pos) = Cons   (shiftnl d c t) (shiftnl d c ts) pos
 shiftnl _ _ t                  = t
 
 -- Preforms variable substitution in branches
@@ -48,6 +49,7 @@ sub j s (Case t  bs    pos) = Case   (sub j s t) (map su bs) pos                
 sub j s (Proj t  ss    pos) = Proj   (sub j s t) ss pos
 sub j s (Record  ts    pos) = Record (map su ts) pos                                   where su = \(n, f) -> (n, sub j s f)
 sub j s (Pair t1 t2    pos) = Pair   (sub j s t1) (sub j s t2) pos
+sub j s (Cons t  ts    pos) = Cons   (sub j s t) (sub j s ts)  pos
 sub j s (ELeft   t ty  pos) = ELeft  (sub j s t) ty pos
 sub j s (ERight  t ty  pos) = ERight (sub j s t) ty pos
 sub j s (Fix     t     pos) = Fix    (sub j s t) pos
@@ -70,6 +72,7 @@ subType subs (Let p  t1 t2 pos) = Let p   t1' t2' pos where t1' = subType subs t
 subType subs (Case   t  bs pos) = Case    t'  (map stb bs) pos where t' = subType subs t; stb = \(p, e) -> (p, subType subs e)
 subType subs (Proj   t  s  pos) = Proj    t'  s   pos where t' = subType subs t
 subType subs (Pair   t1 t2 pos) = Pair    t1' t2' pos where [t1',t2'] = map (subType subs) [t1,t2]
+subType subs (Cons   t  ts pos) = Cons    t'  ts' pos where t' = subType subs t; ts' = subType subs ts
 subType subs (Fix    t     pos) = Fix     t'      pos where t' = subType subs t
 subType subs (Fst    t     pos) = Fst     t'      pos where t' = subType subs t
 subType subs (Snd    t     pos) = Snd     t'      pos where t' = subType subs t
@@ -185,11 +188,19 @@ eval1 ctx (IsZero t pos)              = do
   t' <- eval1 ctx t
   return $ IsZero t' pos
 eval1 ctx (ELeft t ty pos)            = do
-    t' <- eval1 ctx t
-    return $ ELeft t' ty pos
+  t' <- eval1 ctx t
+  return $ ELeft t' ty pos
 eval1 ctx (ERight t ty pos)           = do
-    t' <- eval1 ctx t
-    return $ ERight t' ty pos
+  t' <- eval1 ctx t
+  return $ ERight t' ty pos
+eval1 ctx (Cons t ts pos)             =
+  if isValue t
+    then do
+      ts' <- eval1 ctx ts
+      return $ Cons t ts' pos
+    else do
+      t' <- eval1 ctx t
+      return $ Cons t' ts pos
 eval1 ctx _                           = Nothing
 
 eval0 :: VContext -> Term -> Term
