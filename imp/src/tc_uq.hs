@@ -202,5 +202,5 @@ findSubs2 :: [(String, Type)] -> TExpr -> TExpr -> TExpr -> TExpr -> Maybe [(Str
 findSubs2 s0 t11 t12 t21 t22 = do
   s1 <- findSubs s0 (Type t11) (Type t21)
   s2 <- findSubs s1 (Type t12) (Type t22)
-  return s2
+  return $ s1 ++ s2
   

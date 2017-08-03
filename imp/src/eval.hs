@@ -3,11 +3,15 @@ module Evaluator
 
 where
 
+import Text.Parsec.Pos
+import Debug.Trace
+
 import Language.AbstractSyntax
 import Language.Patterns
 import Evaluator.PatternMatching
+import TypeChecker
 import TypeChecker.Types
-import Text.Parsec.Pos
+import TypeChecker.UniversalQuantifiers.Utils
 
 
 -- Evaluation
@@ -70,6 +74,29 @@ sub j s (ELeft t ty pos)  = ELeft (sub j s t) ty pos
 sub j s (ERight t ty pos) = ERight (sub j s t) ty pos
 sub _ _ t                 = t
 
+subTypeCaseBranch :: [(String, Type)] -> Branches -> Branches
+subTypeCaseBranch subs [(p, e)]    = [(p, e')] where e' = subType subs e
+subTypeCaseBranch subs ((p, e):bs) = (p, e'):bs' where e' = subType subs e; bs' = subTypeCaseBranch subs bs
+
+-- Performs substitution in type annotations
+subType :: [(String, Type)] -> Term -> Term
+subType subs (Abs s ty t pos)  = Abs   s ty' t'  pos where ty' = substituteAll subs ty; t' = subType subs t
+subType subs (ELeft t ty pos)  = ELeft   t'  ty' pos where ty' = substituteAll subs ty; t' = subType subs t
+subType subs (ERight t ty pos) = ERight  t'  ty' pos where ty' = substituteAll subs ty; t' = subType subs t
+subType subs (App t1 t2 pos)   = App t1' t2'     pos where t1' = subType subs t1; t2' = subType subs t2
+subType subs (If t1 t2 t3 pos) = If  t1' t2' t3' pos where [t1',t2',t3'] = map (subType subs) [t1,t2,t3]
+subType subs (Let p t1 t2 pos) = Let p   t1' t2' pos where t1' = subType subs t1; t2' = subType subs t2
+subType subs (Case t bs pos)   = Case t' bs' pos where t' = subType subs t; bs' = subTypeCaseBranch subs bs
+subType subs (Proj t s pos)    = Proj t' s pos   where t' = subType subs t
+subType subs (Fix t pos)       = Fix    t' pos   where t' = subType subs t
+subType subs (Fst t pos)       = Fst    t' pos   where t' = subType subs t
+subType subs (Snd t pos)       = Snd    t' pos   where t' = subType subs t
+subType subs (Succ t pos)      = Succ   t' pos   where t' = subType subs t
+subType subs (Pred t pos)      = Succ   t' pos   where t' = subType subs t
+subType subs (IsZero t pos)    = IsZero t' pos   where t' = subType subs t
+subType subs (Pair t1 t2 pos)  = Pair t1' t2' pos where [t1',t2'] = map (subType subs) [t1,t2]
+subType _    t                 = t
+
 -- Substitutes patterns
 subPats :: [(String, Term)] -> Term -> Term
 subPats [] t           = t
@@ -88,40 +115,47 @@ evalBranches t ((p, e):bs) pos =
     Nothing   -> evalBranches t bs pos
     Just subs -> subPats subs e
 
-eval1 :: Term -> Maybe Term
-eval1 (Abs s ty t pos)            = do
-  t' <- eval1 t
+eval1 :: VContext -> Term -> Maybe Term
+eval1 ctx (Abs s ty t pos)            = do
+  t' <- eval1 ctx' t
   return $ Abs s ty t' pos
-eval1 (App (Abs s ty t11 pos1) t2 pos2) = return $ shiftnl (-1) 0 $ sub 0 (shiftnl 1 0 t2) t11
-eval1 (App t1 t2 pos)              = do
-  t1' <- eval1 t1
+  where ctx' = pushBinding ctx (s, ty)
+eval1 ctx (App (Abs s ty t11 pos1) t2 pos2) =
+  case typeof0 nilmap ctx t2 of
+    Left e    -> error $ "Error in type substitution:  " ++ show e
+    Right ty2 -> do
+          subs <- findSubs [] ty ty2
+          let t11' = subType subs t11
+          return $ shiftnl (-1) 0 $ sub 0 (shiftnl 1 0 t2) t11'
+eval1 ctx (App t1 t2 pos)              = do
+  t1' <- eval1 ctx t1
   return $ App t1' t2 pos
-eval1 (Let p t1 t2 pos)            =
+eval1 ctx (Let p t1 t2 pos)            =
   if isValue t1
     then let msubs = match p t1
       in case msubs of
         Nothing   -> error $ "error in pattern matching:  " ++ show pos
         Just subs -> return $ subPats subs t2 where l = length subs
     else do
-      t1' <- eval1 t1
+      t1' <- eval1 ctx t1
       return $ Let p t1' t2 pos
-eval1 (Case t bs pos)              =
+eval1 ctx (Case t bs pos)              =
   if isValue t
     then return $ evalBranches t bs pos
     else do
-      t' <- eval1 t
+      t' <- eval1 ctx t
       return $ Case t' bs pos
-eval1 (Record fs pos)              =
+eval1 ctx (Record fs pos)              =
   let fields fs = case fs of
         []      -> Nothing
         ((s, t):fs0) -> do
-          let t' = eval t
+          let t' = eval0 ctx t
           fs0' <- fields fs0
           return $ (s, t'):fs0'
   in do
     fs' <- fields fs
     return $ Record fs' pos
-eval1 (Proj t s pos)               =
+eval1 ctx (Proj t s pos)               =
   if isValue t
     then case t of
       Record fs _ ->
@@ -130,64 +164,61 @@ eval1 (Proj t s pos)               =
           Just tt -> return tt
       _         -> error $ "record not provided to projection:  " ++ show pos
     else do
-      t' <- eval1 t
+      t' <- eval1 ctx t
       return $ Proj t' s pos
-eval1 (Pair t1 t2 pos)             = do
+eval1 ctx (Pair t1 t2 pos)             = do
   if isValue t1
     then do
-      t2' <- eval1 t2
+      t2' <- eval1 ctx t2
       return $ Pair t1 t2' pos
     else do
-      t1' <- eval1 t1
+      t1' <- eval1 ctx t1
       return $ Pair t1' t2 pos
-eval1 (Fix (Abs s ty t pos1) pos2) = return $ shiftnl (-1) 0 $ sub 0 (shiftnl 1 0 $ Fix (Abs s ty t pos1) pos2) t
-eval1 (Fix t pos)                  = do
-  t' <- eval1 t
+eval1 ctx (Fix (Abs s ty t pos1) pos2) = return $ shiftnl (-1) 0 $ sub 0 (shiftnl 1 0 $ Fix (Abs s ty t pos1) pos2) t
+eval1 ctx (Fix t pos)                  = do
+  t' <- eval1 ctx t
   return $ Fix t' pos
-eval1 (If (Tru _) t2 t3 _)        = Just t2
-eval1 (If (Fls _) t2 t3 _)        = Just t3
-eval1 (If t1 t2 t3 pos)           = do
-  t1' <- eval1 t1
+eval1 ctx (If (Tru _) t2 t3 _)        = Just t2
+eval1 ctx (If (Fls _) t2 t3 _)        = Just t3
+eval1 ctx (If t1 t2 t3 pos)           = do
+  t1' <- eval1 ctx t1
   return $ If t1' t2 t3 pos
-eval1 (Fst (Pair t1 t2 _) _)      = Just t1
-eval1 (Fst t pos)                 = do
-  t' <- eval1 t
+eval1 ctx (Fst (Pair t1 t2 _) _)      = Just t1
+eval1 ctx (Fst t pos)                 = do
+  t' <- eval1 ctx t
   return $ Fst t' pos
-eval1 (Snd (Pair t1 t2 _) _)      = Just t2
-eval1 (Snd t pos)                 = do
-  t' <- eval1 t
+eval1 ctx (Snd (Pair t1 t2 _) _)      = Just t2
+eval1 ctx (Snd t pos)                 = do
+  t' <- eval1 ctx t
   return $ Snd t' pos
-eval1 (Succ (Pred t _) pos)       = Just t
-eval1 (Succ t pos)                = do
-  t' <- eval1 t
+eval1 ctx (Succ (Pred t _) pos)       = Just t
+eval1 ctx (Succ t pos)                = do
+  t' <- eval1 ctx t
   return $ Succ t' pos
-eval1 (Pred (Zero _) pos)         = Just $ Zero pos
-eval1 (Pred (Succ t _) pos)       = Just t
-eval1 (Pred t pos)                = do
-  t' <- eval1 t
+eval1 ctx (Pred (Zero _) pos)         = Just $ Zero pos
+eval1 ctx (Pred (Succ t _) pos)       = Just t
+eval1 ctx (Pred t pos)                = do
+  t' <- eval1 ctx t
   return $ Pred t' pos
-eval1 (IsZero (Zero _) pos)       = Just $ Tru pos
-eval1 (IsZero (Succ t _) pos)     = Just $ Fls pos
-eval1 (IsZero t pos)              = do
-  t' <- eval1 t
+eval1 ctx (IsZero (Zero _) pos)       = Just $ Tru pos
+eval1 ctx (IsZero (Succ t _) pos)     = Just $ Fls pos
+eval1 ctx (IsZero t pos)              = do
+  t' <- eval1 ctx t
   return $ IsZero t' pos
-eval1 (ELeft t ty pos)            =
-  if isValue t
-    then Nothing
-    else do
-      t' <- eval1 t
-      return $ ELeft t' ty pos
-eval1 (ERight t ty pos)           =
-  if isValue t
-    then Nothing
-    else do
-      t' <- eval1 t
-      return $ ERight t' ty pos
-eval1 _                           = Nothing
+eval1 ctx (ELeft t ty pos)            = do
+    t' <- eval1 ctx t
+    return $ ELeft t' ty pos
+eval1 ctx (ERight t ty pos)           = do
+    t' <- eval1 ctx t
+    return $ ERight t' ty pos
+eval1 ctx _                           = Nothing
 
-eval :: Term -> Term
-eval t =
-  let ev = eval1 t
+eval0 :: VContext -> Term -> Term
+eval0 ctx t =
+  let ev = eval1 ctx t
   in case ev of
     Nothing -> t
-    Just t' -> eval t'
+    Just t' -> eval0 ctx t'
+
+eval :: Term -> Term
+eval = eval0 nilmap

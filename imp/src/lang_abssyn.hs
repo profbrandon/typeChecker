@@ -62,18 +62,21 @@ pushAllBindings :: VContext -> [(String, Type)] -> VContext
 pushAllBindings ctx [] = ctx
 pushAllBindings ctx (p:ps) = pushAllBindings ctx' ps where ctx' = pushBinding ctx p
 
-addRecPat :: VContext -> [(String, Pat)] -> VContext
-addRecPat ctx []       = ctx
-addRecPat ctx ((s, p):ps) = addRecPat ctx' ps where ctx' = addPatterns ctx p
+findRecPVars :: [(String, Pat)] -> [String]
+findRecPVars []     = []
+findRecPVars ((_, p):ps) = p' ++ findRecPVars ps where p' = findPVars p
+
+findPVars :: Pat -> [String]
+findPVars (PVar s)    = [s]
+findPVars (PPair a b) = s1 ++ s2 where s1 = findPVars a; s2 = findPVars b
+findPVars (PRec ps)   = findRecPVars ps
+findPVars (PSucc p)   = findPVars p
+findPVars (PLeft p)   = findPVars p
+findPVars (PRight p)  = findPVars p
+findPVars _           = []
 
 addPatterns :: VContext -> Pat -> VContext
-addPatterns ctx (PVar s)    = pushBinding ctx (s, Type $ TName "")
-addPatterns ctx (PPair a b) = addPatterns ctx' b where ctx' = addPatterns ctx a
-addPatterns ctx (PRec ps)   = addRecPat ctx ps
-addPatterns ctx (PSucc p)   = addPatterns ctx p
-addPatterns ctx (PLeft p)   = addPatterns ctx p
-addPatterns ctx (PRight p)  = addPatterns ctx p
-addPatterns ctx _           = ctx 
+addPatterns vctx p = pushAllBindings vctx ps where ps = map (\s -> (s, Type $ TName "")) $ findPVars p
 
 isValue :: Term -> Bool
 isValue (Tru _)        = True
@@ -100,8 +103,8 @@ showFields ctx [f]    = fst f ++ " = " ++ showTerm ctx (snd f)
 showFields ctx (f:fs) = fst f ++ " = " ++ showTerm ctx (snd f) ++ "," ++ showFields ctx fs
 
 showBranches :: VContext -> Branches -> String
-showBranches ctx [(p, t)] = show p ++ " -> " ++ showTerm ctx t  
-showBranches ctx ((p, t):bs)   = show p ++ " -> " ++ showTerm ctx t ++ "; " ++ showBranches ctx bs
+showBranches ctx [(p, t)] = show p ++ " -> " ++ showTerm ctx' t where ctx' = addPatterns ctx p
+showBranches ctx ((p, t):bs)   = show p ++ " -> " ++ showTerm ctx' t ++ "; " ++ showBranches ctx bs where ctx' = addPatterns ctx p
 
 showTerm :: VContext -> Term -> String
 showTerm _   (Tru _)         = "True"

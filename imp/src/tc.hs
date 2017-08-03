@@ -111,7 +111,7 @@ typeof0 tctx vctx (App t1 t2 pos)    = do
         Nothing   -> Left $ ParamTypeMismatch ty11 ty2 pos
         Just subs -> if tctxConflict tctx subs
                        then Left $ ParamTypeMismatch ty11 ty2 pos
-                       else return $ quantify (free0 ty12', ty12') where (_, ty12') = separate $ substituteAll subs ty12
+                       else return $ quantify' $ substituteAll subs ty12
     _            ->
       if ty1 == Bottom
         then return Bottom
