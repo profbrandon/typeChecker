@@ -48,7 +48,7 @@ main = do
                              case computeVal (pre ++ ' ':(drop 6 txt')) of
                                Left e      -> do outputStrLn e; loop pre
                                Right (t,_) -> do outputStrLn $ show t; loop pre
-                           | otherwise -> do outputStrLn "Error:  unrecognized command"
+                           | otherwise -> do outputStrLn "Error:  unrecognized command"; loop pre
             _        ->
               case computeVal (pre ++ ' ':txt) of
                 Left e      -> do outputStrLn e; loop pre

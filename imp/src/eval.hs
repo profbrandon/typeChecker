@@ -80,6 +80,7 @@ subTypeCaseBranch subs ((p, e):bs) = (p, e'):bs' where e' = subType subs e; bs' 
 
 -- Performs substitution in type annotations
 subType :: [(String, Type)] -> Term -> Term
+subType []   t                 = t
 subType subs (Abs s ty t pos)  = Abs   s ty' t'  pos where ty' = substituteAll subs ty; t' = subType subs t
 subType subs (ELeft t ty pos)  = ELeft   t'  ty' pos where ty' = substituteAll subs ty; t' = subType subs t
 subType subs (ERight t ty pos) = ERight  t'  ty' pos where ty' = substituteAll subs ty; t' = subType subs t
@@ -124,9 +125,9 @@ eval1 ctx (App (Abs s ty t11 pos1) t2 pos2) =
   case typeof0 nilmap ctx t2 of
     Left e    -> error $ "Error in type substitution:  " ++ show e
     Right ty2 -> do
-          subs <- findSubs [] ty ty2
-          let t11' = subType subs t11
-          return $ shiftnl (-1) 0 $ sub 0 (shiftnl 1 0 t2) t11'
+      subs <- findSubs [] ty ty2
+      let t11' = subType subs t11
+      return $ shiftnl (-1) 0 $ sub 0 (shiftnl 1 0 t2) t11'
 eval1 ctx (App t1 t2 pos)              = do
   t1' <- eval1 ctx t1
   return $ App t1' t2 pos

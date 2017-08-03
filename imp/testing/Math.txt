@@ -9,10 +9,15 @@ let Math = fix \math :
   , sub      : Nat -> Nat -> Nat
   , mult     : Nat -> Nat -> Nat
   , div      : Nat -> Nat -> Nat
+  , mod      : Nat -> Nat -> Nat
+  , divides  : Nat -> Nat -> Bool
   , fac      : Nat -> Nat
   , fib      : Nat -> Nat
   , square   : Nat -> Nat
   , exp      : Nat -> Nat -> Nat
+  , ldf      : Nat -> Nat -> Nat
+  , ld       : Nat -> Nat
+  , prime    : Nat -> Bool
   }.
     
 { zero = \n : Nat. iszero n
@@ -69,6 +74,15 @@ let Math = fix \math :
 		       else d (succ acc) (math.sub aa bb) bb
 	         in div0 0 a b
 
+, mod = \a : Nat. \b : Nat.
+          if iszero b
+	    then 0
+	    else if math.lessThan a b
+	      then a
+	      else math.mod (math.sub a b) b
+
+, divides = \a : Nat. \b : Nat. iszero (math.mod b a)
+
 , fac = \n : Nat.
           if iszero n
 	    then 1
@@ -89,6 +103,21 @@ let Math = fix \math :
             then 1
 	    else let back = math.exp a (pred b)
               in math.mult a back
+
+, ldf = \k : Nat. \n : Nat.
+          if math.divides k n
+	    then k
+	    else if math.lessThan n (math.square k)
+	      then n
+	      else math.ldf (succ k) n
+
+, ld = \n : Nat. math.ldf 2 n
+
+, prime = \n : Nat.
+            case n of
+	      0 -> False;
+	      1 -> False;
+	      _ -> math.equals (math.ld n) n
 }
 
 in 
