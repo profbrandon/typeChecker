@@ -9,11 +9,12 @@ import Text.Parsec (SourcePos)
 
 import TypeChecker.Utils (nilmap)
 import TypeChecker.Types (Type(..), TExpr(..), TContext(..), addAllBindings)
-import TypeChecker.UniversalQuantifiers.Utils (buildArrow, findSubs, quantify, quantify', renameAll, renameUnique, separate, splitArrow, substituteAll, tctxConflict, uniqueNames, (!>))
+import TypeChecker.UniversalQuantifiers.Utils (buildArrow, findSubs, projUnique, quantify, quantify', renameAll, renameUnique, separate, splitArrow, substituteAll, tctxConflict, uniqueNames, (!>))
 import TypeChecker.PatternMatching (tmatch)
 import Language.AbstractSyntax (Term(..), VContext(..), Branches(..), pushAllBindings, pushBinding)
 
 data Error = ParamTypeMismatch    Type Type   SourcePos
+           | ParamTypeMismatchCTX Type Type   SourcePos
            | IfBranchMismatch     Type Type   SourcePos
            | CaseBranchMismatch   Type Type   SourcePos
            | SumMismatch          Type Type   SourcePos
@@ -37,6 +38,7 @@ instance Show Error where
 
 showError :: Error -> String
 showError (ParamTypeMismatch  t1 t2 pos) = "parameter type mismatch. Expected type " ++ show t1 ++ ", recieved type " ++ show t2 ++ " at " ++ show pos
+showError (ParamTypeMismatchCTX t1 t2 pos) = "parameter type mismatch due to context.  Expected type " ++ show t1 ++ ", recieved type " ++ show t2 ++ " at " ++ show pos
 showError (IfBranchMismatch   t1 t2 pos) = "type mismatch in branches of conditional. Recieved types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
 showError (CaseBranchMismatch t1 t2 pos) = "type mismatch in branches of case expression. Recieved types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
 showError (SumMismatch        t1 t2 pos) = "type mismatch in sum annotation.  Recieved type " ++ show t1 ++ ", expected " ++ show t2 ++ " at " ++ show pos
@@ -99,7 +101,7 @@ typeof0 tctx vctx (App t1 t2 pos)    = do
       in case fs of
         Nothing   -> Left $ ParamTypeMismatch ty11 ty2 pos
         Just subs -> if tctxConflict tctx subs
-                       then Left $ ParamTypeMismatch ty11 ty2 pos
+                       then Left $ ParamTypeMismatchCTX ty11 ty2 pos
                        else return $ quantify' $ substituteAll subs ty12
     _            ->
       if ty1 == Bottom
@@ -130,11 +132,11 @@ typeof0 tctx vctx (Record fs _)    =
     return $ Type $ TRec fs'
 typeof0 tctx vctx (Proj t s pos)     = do
   ty <- typeof0 tctx vctx t
-  case ty of
-    Type (TRec fs) ->
+  case separate ty of
+    (_, TRec fs) ->
       case s `lookup` fs of
         Nothing  -> Left $ ProjectionMismatch ty s pos
-        Just tys -> return tys
+        Just tys -> return tys' where tys' = projUnique tys tctx
     _              -> Left $ ExpectedRecordtoProj ty pos
 typeof0 tctx vctx (Pair t1 t2 _)   = do
   ty1 <- typeof0 tctx vctx t1

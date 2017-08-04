@@ -117,7 +117,7 @@ uniqueNames :: [String] -> Type -> [String]
 uniqueNames []     t = []
 uniqueNames (x:xs) t =
   if hasTypeVar x t'
-    then (x ++ "\'"):back
+    then uniqueNames ((x ++ "\'"):back) t'
     else x:back
   where t'   = condense t
         back = uniqueNames xs t'
@@ -130,6 +130,19 @@ renameUnique ctx t1 observer =
       names'     = filter (\n -> isNothing $ ctx n) names
       mapping    = zip names' $ uniqueNames names' observer
   in renameAll mapping t1
+
+uniqueNames2 :: [String] -> TContext -> [String]
+uniqueNames2 [] ctx     = []
+uniqueNames2 (x:xs) ctx =
+  if isJust $ ctx x
+    then uniqueNames2 ((x ++ "\'"):xs) ctx
+    else x:back
+  where back = uniqueNames2 xs ctx
+
+projUnique :: Type -> TContext -> Type
+projUnique t ctx =
+  let (names, _) = separate $ condense t
+  in renameAll (zip names $ uniqueNames2 names ctx) t
 
 substituteAll :: [(String, Type)] -> Type -> Type
 substituteAll [] t    = t
@@ -166,9 +179,9 @@ tctxConflict tctx (x:xs) =
    (n, Type (TVar m)) ->
      if n == m
        then back
-       else not (prop n && prop m) || back
+       else (bound n && bound m) || back
    _                  -> back
-  where prop = isNothing . tctx
+  where bound = isJust . tctx
         back = tctxConflict tctx xs
 
 
@@ -196,10 +209,20 @@ findSubs s0 (Type (TPair t11 t12)) (Type (TPair t21 t22)) = findSubs2 s0 t11 t12
 findSubs s0 (Type (Sum t11 t12))   (Type (Sum t21 t22))   = findSubs2 s0 t11 t12 t21 t22
 findSubs s  (Type (List a))        (Type (List (TVar "a*"))) = return []
 findSubs s  (Type (List a))        (Type (List b))        = findSubs s (Type a) (Type b)
+findSubs s  (Type (TVar n))        (Type (TVar k))        =
+  case k `lookup` s of
+    Nothing -> return $ (n, Type $ TVar k):s
+    Just t  -> return $ (n, t):s
 findSubs s  (Type (TVar n))        t1
   | (n, t1) `elem` s                                      = return s
-  | isJust $ n `lookup` s                                 = Nothing
-  | otherwise                                             = return $ (n, t1):s
+  | otherwise =
+    case n `lookup` s of
+      Nothing -> return $ (n, t1):s
+      Just t2 -> if (quantify' t1) !> (quantify' t2)
+        then return $ (n, t1):((n, t2) `delete` s)
+        else if (quantify' t2) !> (quantify' t1)
+          then return s
+          else Nothing
 findSubs s  (Type p1)              (Type p2)
   | p1 == p2                                              = return []
   | otherwise                                             = Nothing
