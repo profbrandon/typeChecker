@@ -3,6 +3,7 @@ module Evaluator
 
 where
 
+import Debug.Trace
 import Text.Parsec.Pos(SourcePos(..))
 
 import Language.AbstractSyntax(Term(..), Branches(..), VContext(..), pushBinding, isValue)
@@ -23,7 +24,7 @@ shiftnl d c (App t1 t2    pos) = App    (shiftnl d c t1) (shiftnl d c t2) pos
 shiftnl d c (Abs s  ty t  pos) = Abs s ty (shiftnl d (c + 1) t) pos
 shiftnl d c (If  t1 t2 t3 pos) = If     (sh t1) (sh t2) (sh t3) pos                 where sh = shiftnl d c
 shiftnl d c (Let p  t1 t2 pos) = Let p  (shiftnl d c t1) (shiftnl d (c + l) t2) pos where l = countVars p
-shiftnl d c (Case   t  bs pos) = Case   (shiftnl d c t)  (map shift bs)         pos where shift = \(p, t) -> (p, shiftnl d (c + countVars p) t)
+shiftnl d c (Case   t  bs pos) = Case   (shiftnl d c t)  (map shift bs)         pos where shift = \(p, e) -> (p, shiftnl d (c + countVars p) e)
 shiftnl d c (Proj   t  s  pos) = Proj   (shiftnl d c t) s pos
 shiftnl d c (Record fs    pos) = Record (map shift fs) pos                          where shift = \(s, f) -> (s, shiftnl d c f) 
 shiftnl d c (Pair   t1 t2 pos) = Pair   (shiftnl d c t1) (shiftnl d c t2) pos
@@ -45,7 +46,7 @@ sub j s (App  t1 t2    pos) = App    (sub j s t1) (sub j s t2) pos
 sub j s (Abs  n  ty t  pos) = Abs    n ty t' pos                                       where t' = sub (j + 1) (shiftnl 1 0 s) t
 sub j s (If   t1 t2 t3 pos) = If     (sb t1) (sb t2) (sb t3) pos                       where sb = sub j s
 sub j s (Let  p  t1 t2 pos) = Let p  (sub j s t1) (sub (j + l) (shiftnl l 0 s) t2) pos where l = countVars p
-sub j s (Case t  bs    pos) = Case   (sub j s t) (map su bs) pos                       where su = \(p, t) -> let l = countVars p in (p, sub (j + l) (shiftnl l 0 s) t)
+sub j s (Case t  bs    pos) = Case   (sub j s t) (map su bs) pos                       where su = \(p, e) -> let l = countVars p in (p, sub (j + l) (shiftnl l 0 s) e)
 sub j s (Proj t  ss    pos) = Proj   (sub j s t) ss pos
 sub j s (Record  ts    pos) = Record (map su ts) pos                                   where su = \(n, f) -> (n, sub j s f)
 sub j s (Pair t1 t2    pos) = Pair   (sub j s t1) (sub j s t2) pos

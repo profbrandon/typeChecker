@@ -49,7 +49,7 @@ term vctx = do
     <|> (try $ cond vctx)
     <|> (try $ var vctx)
   t1 <- proj t0 vctx 
-  cons t1 vctx
+  cons t1 vctx <|> (do white'; return t1)
 
 sslist :: VContext -> Parser Term
 sslist vctx = do
@@ -106,7 +106,7 @@ proj t vctx = do
 cons :: Term -> VContext -> Parser Term
 cons e1 vctx = do
   pos <- getPosition
-  choice [ do char '@'; white; e2 <- expr vctx; return $ Cons e1 e2 pos
+  choice [ do char '@'; white; t2 <- term vctx; return $ Cons e1 t2 pos
          , do white; return e1]
 
 app :: Term -> VContext -> Parser Term
@@ -364,7 +364,7 @@ pcons = do
   char '('; white
   p1 <- pat
   char '@'; white
-  p2 <- (try pcons) <|> (try pnil) <|> (try pvar) <|> pwild
+  p2 <- (try pcons) <|> (try pnil) <|> (try pwild) <|> pvar
   char ')'; white
   return $ PCons p1 p2 
 

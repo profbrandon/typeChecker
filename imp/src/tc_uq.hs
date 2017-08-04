@@ -94,7 +94,7 @@ substitute0 v t2 t1 =
         Arrow a b -> sub2 Arrow a b
         TPair a b -> sub2 TPair a b
         Sum a b   -> sub2 Sum a b
-        List a    -> substitute0 v t2 a
+        List a    -> List $ substitute0 v t2 a
         TVar n    ->
           if n == v
             then t2
@@ -145,7 +145,9 @@ substituteAll0 getSub t =
     Arrow a b -> sub2 Arrow a b
     TPair a b -> sub2 TPair a b
     Sum a b   -> sub2 Sum a b
-    List a    -> substituteAll0 getSub a
+    List a    ->
+      let (qs, t) = substituteAll0 getSub a
+      in (qs, List t)
     TVar v    -> 
       case getSub v of
         Nothing -> ([v], TVar v)
@@ -192,6 +194,7 @@ findSubs s  t                      (Forall v tt)          = findSubs s t tt
 findSubs s0 (Type (Arrow t11 t12)) (Type (Arrow t21 t22)) = findSubs2 s0 t11 t12 t21 t22
 findSubs s0 (Type (TPair t11 t12)) (Type (TPair t21 t22)) = findSubs2 s0 t11 t12 t21 t22
 findSubs s0 (Type (Sum t11 t12))   (Type (Sum t21 t22))   = findSubs2 s0 t11 t12 t21 t22
+findSubs s  (Type (List a))        (Type (List (TVar "a*"))) = return []
 findSubs s  (Type (List a))        (Type (List b))        = findSubs s (Type a) (Type b)
 findSubs s  (Type (TVar n))        t1
   | (n, t1) `elem` s                                      = return s

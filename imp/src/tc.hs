@@ -9,7 +9,7 @@ import Text.Parsec (SourcePos)
 
 import TypeChecker.Utils (nilmap)
 import TypeChecker.Types (Type(..), TExpr(..), TContext(..), addAllBindings)
-import TypeChecker.UniversalQuantifiers.Utils (buildArrow, findSubs, quantify, quantify', renameUnique, separate, splitArrow, substituteAll, tctxConflict, (!>))
+import TypeChecker.UniversalQuantifiers.Utils (buildArrow, findSubs, quantify, quantify', renameAll, renameUnique, separate, splitArrow, substituteAll, tctxConflict, uniqueNames, (!>))
 import TypeChecker.PatternMatching (tmatch)
 import Language.AbstractSyntax (Term(..), VContext(..), Branches(..), pushAllBindings, pushBinding)
 
@@ -21,6 +21,7 @@ data Error = ParamTypeMismatch    Type Type   SourcePos
            | ConsMismatch         Type Type   SourcePos
            | ExpectedArrow        Type        SourcePos
            | ExpectedSum          Type        SourcePos
+           | ExpectedListtoCons   Type Type   SourcePos
            | ExpectedBoolGuard    Type        SourcePos
            | ExpectedPairtoFst    Type        SourcePos
            | ExpectedPairtoSnd    Type        SourcePos
@@ -43,6 +44,7 @@ showError (ProjectionMismatch t  s  pos) = "type mismatch in projection.  Reciev
 showError (ConsMismatch       t1 t2 pos) = "type mismatch in cons expression (@).  Expected types of 'a' and '[a]', but received types " ++ show t1 ++ " and " ++ show t2 ++ " at " ++ show pos
 showError (ExpectedArrow         t  pos) = "expected arrow type, recieved type " ++ show t ++ " at " ++ show pos
 showError (ExpectedSum            t pos) = "expected sum type, recieved type " ++ show t ++ " at " ++ show pos
+showError (ExpectedListtoCons t1 t2 pos) = "expected type [" ++ show t1 ++ "] to cons operator (@), recieved type " ++ show t2 ++ " at " ++ show pos
 showError (ExpectedBoolGuard      t pos) = "expected argument of type Bool to guard of conditional, recieved type " ++ show t ++ " at " ++ show pos
 showError (ExpectedPairtoFst      t pos) = "expected argument of type (a, b) to \'fst\' function, recieved type " ++ show t ++ " at " ++ show pos
 showError (ExpectedPairtoSnd      t pos) = "expected argument of type (a, b) to \'snd\' function, recieved type " ++ show t ++ " at " ++ show pos
@@ -73,11 +75,9 @@ branches tctx vctx pos ty ((p, t):bs) =
       in do
         ty1 <- typeof0 tctx vctx' t
         ty2 <- branches tctx vctx pos ty bs
-        if ty1 !> ty2
-          then return ty2
-          else if ty2 !> ty1
-            then return ty1
-            else Left $ CaseBranchMismatch ty1 ty2 pos
+        if ty1 !> ty2 && ty2 !> ty1
+          then return ty1
+          else Left $ CaseBranchMismatch ty1 ty2 pos
 
 typeof :: Term -> Either Error Type
 typeof = typeof0 nilmap nilmap
@@ -215,8 +215,9 @@ typeof0 tctx vctx (Cons t ts pos)    = do
         else if a' !> ty
           then return tys
           else Left $ ConsMismatch ty tys pos
+    _           -> Left $ ExpectedListtoCons ty tys pos
 typeof0 _    _    (Tru _)            = return $ Type Bool
 typeof0 _    _    (Fls _)            = return $ Type Bool
 typeof0 _    _    (Zero _)           = return $ Type Nat
 typeof0 _    _    (EUnit _)          = return $ Type Unit
-typeof0 _    _    (Nil   _)          = return $ Forall "a" $ Type $ List $ TVar "a"
+typeof0 tctx _    (Nil   _)          = return $ Forall "a*" $ Type $ List $ TVar "a*"

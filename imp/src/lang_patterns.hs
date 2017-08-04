@@ -56,6 +56,7 @@ showPat PWild          = "_"
 countVars :: Pat -> Int 
 countVars (PVar _)    = 1
 countVars (PPair a b) = countVars a + countVars b
+countVars (PCons a b) = countVars a + countVars b
 countVars (PRec fs)   = foldl (+) 0 $ map countVars ps where ps = snd (unzip fs)
 countVars (PSucc p)   = countVars p
 countVars (PLeft p)   = countVars p

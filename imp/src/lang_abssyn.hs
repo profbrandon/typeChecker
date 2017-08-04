@@ -7,6 +7,7 @@ module Language.AbstractSyntax
   , pushBinding
   , pushAllBindings
   , isValue
+  , findPVars
   , addPatterns
   )
 where
@@ -130,7 +131,7 @@ showTerm ctx (Pair   t1 t2 _) = "("        ++ showTerm ctx t1 ++ "," ++ showTerm
 showTerm ctx (Cons t1 t2 pos) 
   | isValue t1 && isValue t2  = "[" ++ showList ctx (Cons t1 t2 pos) ++ "]"
   | isValue t2                = "(" ++ showTerm ctx t1 ++ ")@[" ++ showList ctx t2 ++ "]"
-  | otherwise                 = "(" ++ showTerm ctx t2 ++ ")@" ++ showTerm ctx t2
+  | otherwise                 = "(" ++ showTerm ctx t1 ++ ")@" ++ showTerm ctx t2
 showTerm ctx (ELeft  t  ty _) = "Left "    ++ showTerm ctx t ++ " : " ++ show ty
 showTerm ctx (ERight t  ty _) = "Right "   ++ showTerm ctx t ++ " : " ++ show ty
 showTerm ctx (Fix    t  _)    = "fix ("    ++ showTerm ctx t ++ ")"
