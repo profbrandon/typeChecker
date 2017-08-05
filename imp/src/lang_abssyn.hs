@@ -78,7 +78,6 @@ addPatterns vctx p = pushAllBindings vctx ps where ps = map (\s -> (s, Type $ TN
 
 isValue :: Term -> Bool
 isValue (Abs  _ _ _ _) = True
-isValue (Let  _ _ _ _) = True
 isValue (Record  fs _) = and $ map isValue (snd $ unzip fs)
 isValue (Pair t1 t2 _) = isValue t1 && isValue t2
 isValue (Succ   t _)   = isValue t

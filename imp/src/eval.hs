@@ -117,7 +117,7 @@ eval1 ctx (Let p t1 t2 pos)            =
   if isValue t1
     then let msubs = match p t1
       in case msubs of
-        Nothing   -> error $ "error in pattern matching:  " ++ show pos
+        Nothing   -> error $ "error in matching the pattern " ++ show p ++ " with the term " ++ show t1 ++ " at " ++ show pos
         Just subs -> return $ subPats subs t2 where l = length subs
     else do
       t1' <- eval1 ctx t1
