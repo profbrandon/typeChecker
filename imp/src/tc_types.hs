@@ -5,6 +5,7 @@ module TypeChecker.Types
   , addAllBindings
   , addBinding
   , nilmap
+  , isConcrete
   )
 where
 
@@ -67,3 +68,19 @@ showTExpr (Arrow a b) =
   case a of
     Arrow _ _ -> "(" ++ show a ++ ") -> " ++ show b
     _         -> show a ++ " -> " ++ show b
+
+isConcrete0 :: Type -> Bool
+isConcrete0 (Forall _ _) = False
+isConcrete0 (Type t)     = isConcrete t
+
+isConcrete :: TExpr -> Bool
+isConcrete (TVar _)     = False
+isConcrete Bool         = True
+isConcrete Nat          = True
+isConcrete Unit         = True
+isConcrete (TName _)    = True
+isConcrete (List  a)    = isConcrete a
+isConcrete (TPair a  b) = isConcrete a && isConcrete b
+isConcrete (Sum   a  b) = isConcrete a && isConcrete b
+isConcrete (Arrow a  b) = isConcrete a && isConcrete b
+isConcrete (TRec  fs)   = and $ map (isConcrete0 . snd) fs

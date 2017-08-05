@@ -5,7 +5,7 @@ import Data.List (union, delete)
 import Data.Maybe (isJust, isNothing)
 
 import TypeChecker.Utils
-import TypeChecker.Types
+import TypeChecker.Types 
 
 
 
@@ -201,9 +201,9 @@ special t1 t2 = isJust $ findSubs [] t2 t1
 -- Finds Substitutions "s" such that s (t2) = t1 (if they exist)
   -- where s (t2) denotes performing all substitutions in s on t2
 findSubs :: [(String,Type)] -> Type -> Type -> Maybe [(String, Type)]
-findSubs s  (Forall v1 tt1)        (Forall v2 tt2)        = findSubs s tt1 tt2
-findSubs s  (Forall v tt)          t                      = findSubs s tt t
-findSubs s  t                      (Forall v tt)          = findSubs s t tt
+findSubs s  (Forall _ tt1)         (Forall _ tt2)        = findSubs s tt1 tt2
+findSubs s  (Forall _ tt)          t                     = findSubs s tt t
+findSubs s  t                      (Forall _ tt)          = findSubs s t tt
 findSubs s0 (Type (Arrow t11 t12)) (Type (Arrow t21 t22)) = findSubs2 s0 t11 t12 t21 t22
 findSubs s0 (Type (TPair t11 t12)) (Type (TPair t21 t22)) = findSubs2 s0 t11 t12 t21 t22
 findSubs s0 (Type (Sum t11 t12))   (Type (Sum t21 t22))   = findSubs2 s0 t11 t12 t21 t22
@@ -225,6 +225,8 @@ findSubs s  (Type (TVar n))        t1
           else Nothing
 findSubs s  (Type p1)              (Type p2)
   | p1 == p2                                              = return []
+  | isConcrete p1                                         =
+    if isJust $ findSubs [] (Type p2) (Type p1) then return [] else Nothing
   | otherwise                                             = Nothing
 findSubs _  _                      _                      = Nothing
 
