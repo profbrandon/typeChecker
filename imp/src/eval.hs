@@ -131,10 +131,14 @@ eval1 ctx (Case t bs pos)              =
 eval1 ctx (Record fs pos)              =
   let fields fs = case fs of
         []      -> Nothing
-        ((s, t):fs0) -> do
-          let t' = eval0 ctx t
-          fs0' <- fields fs0
-          return $ (s, t'):fs0'
+        ((s, t):fs0) ->
+          if isValue t
+            then do
+              fs0' <- fields fs0
+              return $ (s, t):fs0'
+            else do
+              t' <- eval1 ctx t
+              return $ (s, t'):fs0
   in do
     fs' <- fields fs
     return $ Record fs' pos

@@ -5,6 +5,8 @@ let Math = fix \math :
   , odd      : Nat -> Bool
   , equals   : Nat -> Nat -> Bool
   , lessThan : Nat -> Nat -> Bool
+  , max      : Nat -> Nat -> Nat
+  , min      : Nat -> Nat -> Nat
   , add      : Nat -> Nat -> Nat
   , sub      : Nat -> Nat -> Nat
   , mult     : Nat -> Nat -> Nat
@@ -43,6 +45,10 @@ let Math = fix \math :
 	         (_,0) -> False;
 	         (0,_) -> True;
 		 _     -> math.lessThan (pred a) (pred b)
+
+, max = \a : Nat. \b : Nat. if math.lessThan a b then b else a
+
+, min = \a : Nat. \b : Nat. if math.lessThan a b then a else b
 
 , add = \a : Nat. \b : Nat.
           case (a,b) of

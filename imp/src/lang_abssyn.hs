@@ -14,11 +14,12 @@ where
 
 import Prelude hiding (showList)
 import Data.List (delete, lookup)
+import Data.Maybe (isJust)
 import Text.Parsec (SourcePos)
 
 import TypeChecker.Utils (Function(..), nilmap, addBinding)
 import TypeChecker.Types (Type(..), TExpr(..))
-import Language.Patterns (Pat(..))
+import Language.Patterns (Pat(..), countVars)
 
 data Term = Var    Int                  SourcePos
           | App    Term   Term          SourcePos
@@ -42,7 +43,7 @@ data Term = Var    Int                  SourcePos
           | Fls                         SourcePos
           | Zero                        SourcePos
           | EUnit                       SourcePos
-		  | Nil                         SourcePos
+          | Nil                         SourcePos
 
 type Fields = [(String, Term)]
 
@@ -77,18 +78,18 @@ addPatterns :: VContext -> Pat -> VContext
 addPatterns vctx p = pushAllBindings vctx ps where ps = map (\s -> (s, Type $ TName "")) $ findPVars p
 
 isValue :: Term -> Bool
-isValue (Abs  _ _ _ _) = True
-isValue (Record  fs _) = and $ map isValue (snd $ unzip fs)
-isValue (Pair t1 t2 _) = isValue t1 && isValue t2
-isValue (Succ   t _)   = isValue t
-isValue (Cons t1 t2 _) = isValue t1 && isValue t2
+isValue (Record   f _) = and $ map (isValue . snd) f
+isValue (Pair   a b _) = and $ map isValue [a,b]
+isValue (Cons   a b _) = and $ map isValue [a,b]
+isValue (Succ     t _) = isValue t
 isValue (ELeft  t _ _) = isValue t
-isValue (ERight t _ _) = isValue t
-isValue (Tru    _)     = True
-isValue (Fls    _)     = True
-isValue (Zero   _)     = True
-isValue (EUnit  _)     = True
-isValue (Nil    _)     = True
+isValue (ERight t _ _) = isValue t 
+isValue (Abs  _ _ _ _) = True
+isValue (Tru   _)      = True
+isValue (Fls   _)      = True
+isValue (Zero  _)      = True
+isValue (EUnit _)      = True
+isValue (Nil   _)      = True
 isValue _              = False
 
 toInt :: Term -> Int
@@ -106,9 +107,10 @@ showBranches ctx [(p, t)]    = show p ++ " -> " ++ showTerm ctx' t where ctx' = 
 showBranches ctx ((p, t):bs) = show p ++ " -> " ++ showTerm ctx' t ++ "; " ++ showBranches ctx bs where ctx' = addPatterns ctx p
 
 showList :: VContext -> Term -> String
-showList _    (Nil       _)     = ""
+showList _   (Nil  _)           = ""
 showList ctx (Cons t (Nil _) _) = showTerm ctx t
 showList ctx (Cons t ts _)      = showTerm ctx t ++ ',':showList ctx ts
+showList ctx _                  = error "non-list args supplied to \'showList\'"
 
 showTerm :: VContext -> Term -> String
 showTerm ctx (Var    i  _)    =

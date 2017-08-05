@@ -113,13 +113,11 @@ typeof0 tctx vctx (Let p t1 t2 pos)  = do
   case msubs of
     Nothing   -> Left $ PatternError pos
     Just subs -> do
-      let tctx' = addAllBindings (fst $ separate ty1) tctx
-          vctx' = pushAllBindings vctx subs
-      typeof0 tctx' vctx' t2
+      let vctx' = pushAllBindings vctx subs
+      typeof0 tctx vctx' t2
 typeof0 tctx vctx (Case t bs pos)  = do
   ty <- typeof0 tctx vctx t
-  let tctx' = addAllBindings (fst $ separate ty) tctx
-  branches tctx' vctx pos ty bs
+  branches tctx vctx pos ty bs
 typeof0 tctx vctx (Record fs _)    =
   let fields fs = case fs of
         []            -> return []
